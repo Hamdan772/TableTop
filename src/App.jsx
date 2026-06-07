@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Buildings, ChatCircleDots, Check, Copy, DiceFive, Handshake, House,
   Money, Plus, SealCheck, Trash, Users, X,
@@ -8,6 +8,7 @@ import {
   BOARD, CHANCE, CHEST, TOKENS, calculateRent, createPlayers, initialOwnership, money,
 } from "./game";
 import { TokenPiece } from "./Pieces";
+import { connectToRoom } from "./network";
 
 const randomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 
@@ -24,17 +25,19 @@ function Lobby({ onStart }) {
 
   if (mode === "home") return (
     <main className="welcome">
-      <nav className="welcome-nav"><Brand /><span className="status-pill"><i /> Local pass-and-play</span></nav>
+      <nav className="welcome-nav"><Brand /><span className="status-pill"><i /> Peer-to-peer rooms</span></nav>
       <section className="welcome-grid">
         <div className="welcome-copy">
           <span className="eyebrow">Tonight's table is open</span>
           <h1>Board game night,<br /><em>minus the cleanup.</em></h1>
           <p>Classic games, cozy rooms, and just enough friendly chaos to keep the group chat alive.</p>
           <div className="welcome-actions">
-            <button className="primary big" onClick={() => setMode("create")}><Plus /> Set the table</button>
+            <button className="primary big" onClick={() => setMode("online")}><Plus /> Create online room</button>
+            <button className="secondary big" onClick={() => setMode("join")}><Users /> Join with code</button>
+            <button className="secondary big" onClick={() => setMode("create")}><DiceFive /> Local game</button>
           </div>
           <div className="friend-strip">
-            <p><strong>No accounts. No servers.</strong> One screen, two to eight friends, a complete game.</p>
+            <p><strong>No accounts or TableTop server.</strong> Room discovery, then encrypted peer-to-peer play.</p>
           </div>
         </div>
         <div className="table-preview">
@@ -44,16 +47,18 @@ function Lobby({ onStart }) {
           <div className="voice-bubble"><ChatCircleDots /> Pass the dice, not a login.</div>
         </div>
       </section>
-      <footer className="welcome-footer"><span>TableTop</span><span>A complete local Monopoly table.</span></footer>
+      <footer className="welcome-footer"><span>TableTop</span><span>Online rooms and local pass-and-play.</span></footer>
     </main>
   );
+
+  if (mode === "online" || mode === "join") return <OnlineLobby role={mode === "online" ? "host" : "guest"} initialCode={mode === "online" ? roomCode : ""} onBack={() => setMode("home")} onStart={onStart} />;
 
   return (
     <main className="lobby">
       <nav><Brand /><button className="secondary" onClick={() => setMode("home")}><X /> Leave room</button></nav>
       <section className="lobby-card">
         <div className="lobby-head">
-          <div><span className="eyebrow">Local table setup</span><h1>Choose your pieces.</h1><p>Name every player and pick a unique token. Everything runs on this device.</p></div>
+          <div><span className="eyebrow">Local pass-and-play</span><h1>Choose your pieces.</h1><p>Name every player and pick a unique token for one-screen play.</p></div>
           <div className="table-details"><label>Table name<input value={tableName} onChange={(e) => setTableName(e.target.value)} /></label><button className="room-code" onClick={() => navigator.clipboard?.writeText(roomCode)}><span>GAME ID</span><strong>{roomCode}</strong><Copy /></button></div>
         </div>
         <div className="seats setup-seats">
@@ -71,6 +76,77 @@ function Lobby({ onStart }) {
   );
 }
 
+function OnlineLobby({ role, initialCode, onBack, onStart }) {
+  const [name, setName] = useState(role === "host" ? "Host" : "Player");
+  const [token, setToken] = useState(role === "host" ? TOKENS[0] : TOKENS[1]);
+  const [code, setCode] = useState(initialCode);
+  const [connection, setConnection] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [status, setStatus] = useState(role === "host" ? "Opening room..." : "Enter the room code to connect.");
+
+  useEffect(() => {
+    if (role === "host") join(initialCode);
+  }, []);
+
+  const join = (roomCode = code) => {
+    if (roomCode.length !== 4 || connection) return;
+    const network = connectToRoom(roomCode);
+    const profile = network.room.makeAction("profile");
+    const rosterAction = network.room.makeAction("roster");
+    const startAction = network.room.makeAction("start");
+    const mine = { peerId: network.selfId, name, token };
+    setConnection({ ...network, profile, rosterAction, startAction });
+    setRoster([mine]);
+    setStatus("Connected. Waiting for players...");
+    profile.onMessage = (entry) => {
+      if (role !== "host") return;
+      setRoster((current) => {
+        const next = [...current.filter((p) => p.peerId !== entry.peerId), entry].slice(0, 8);
+        rosterAction.send(next);
+        return next;
+      });
+    };
+    rosterAction.onMessage = (next) => setRoster(next);
+    startAction.onMessage = (setup) => onStart({ ...setup, network, localPeerId: network.selfId, online: true });
+    network.room.onPeerJoin = () => {
+      profile.send(mine);
+      setStatus("Peer connected. Syncing seats...");
+    };
+    network.room.onPeerLeave = (peerId) => setRoster((current) => current.filter((p) => p.peerId !== peerId));
+    setTimeout(() => profile.send(mine), 500);
+  };
+  const updateProfile = (key, value) => {
+    if (key === "name") setName(value); else setToken(value);
+    if (!connection) return;
+    const mine = { peerId: connection.selfId, name: key === "name" ? value : name, token: key === "token" ? value : token };
+    connection.profile.send(mine);
+    setRoster((current) => {
+      const next = current.map((p) => p.peerId === connection.selfId ? mine : p);
+      if (role === "host") connection.rosterAction.send(next);
+      return next;
+    });
+  };
+  const startOnline = () => {
+    const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s online table` };
+    connection.startAction.send(setup);
+    onStart({ ...setup, network: connection, localPeerId: connection.selfId, online: true });
+  };
+  const tokensUsed = roster.filter((p) => p.peerId !== connection?.selfId).map((p) => p.token);
+  const leaveRoom = () => { connection?.room.leave(); onBack(); };
+  return <main className="join-screen"><Brand /><section className="online-room-card">
+    <button className="drawer-close" onClick={leaveRoom}><X /></button>
+    <span className="eyebrow">{role === "host" ? "Create online room" : "Join online room"}</span><h2>{connection ? "The table is open." : "Meet at the table."}</h2>
+    {!connection && role === "guest" && <label>Room code<input className="code-input" maxLength="4" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}
+    <div className="online-profile"><label>Your name<input value={name} onChange={(e) => updateProfile("name", e.target.value)} /></label><label>Your token<select value={token} onChange={(e) => updateProfile("token", e.target.value)}>{TOKENS.map((item) => <option disabled={tokensUsed.includes(item)} key={item}>{item}</option>)}</select></label></div>
+    {!connection ? <button className="primary big" disabled={code.length !== 4 || !name.trim()} onClick={() => join()}>Connect to room</button> : <>
+      <button className="room-code online-code" onClick={() => navigator.clipboard?.writeText(code)}><span>SHARE ROOM CODE</span><strong>{code}</strong><Copy /></button>
+      <div className="online-roster">{roster.map((player) => <article className="seat" key={player.peerId}><div className="seat-avatar"><TokenPiece token={player.token} color="#9ca9a2" /></div><div><strong>{player.name}</strong><span>{player.peerId === connection.selfId ? "You" : "Connected peer"} · {player.token}</span></div><i className="peer-online" /></article>)}</div>
+      {role === "host" && <button className="primary big" disabled={roster.length < 2 || new Set(roster.map((p) => p.token)).size !== roster.length} onClick={startOnline}>Start online game</button>}
+    </>}
+    <p className="connection-status"><i /> {status}</p>
+  </section></main>;
+}
+
 function Brand() {
   return <div className="brand"><img src={`${import.meta.env.BASE_URL}assets/tabletop-logo.png`} alt="" /><strong>TableTop</strong><small>GAME NIGHT</small></div>;
 }
@@ -83,11 +159,11 @@ function PlayerCard({ player, active, onTrade }) {
   </article>;
 }
 
-function PropertyPanel({ index, ownership, players, currentPlayer, onBuyBuilding, onSellBuilding, onMortgage, onClose }) {
+function PropertyPanel({ index, ownership, players, currentPlayer, canAct, onBuyBuilding, onSellBuilding, onMortgage, onClose }) {
   const space = BOARD[index];
   const state = ownership[index];
   const owner = players.find((p) => p.id === state.owner);
-  const canManage = owner?.id === currentPlayer.id && ["property", "railroad", "utility"].includes(space.type);
+  const canManage = canAct && owner?.id === currentPlayer.id && ["property", "railroad", "utility"].includes(space.type);
   return <aside className="drawer">
     <button className="drawer-close" onClick={onClose}><X /></button>
     <div className={`property-hero group-${space.group || space.type}`}><span>{space.type}</span><h2>{space.name}</h2>{space.price && <strong>{money(space.price)}</strong>}</div>
@@ -128,12 +204,12 @@ function TradeModal({ players, currentPlayer, ownership, initialTarget, onClose,
         <div className="trade-props">{target?.properties.map((i) => <button disabled={ownership[i].houses > 0} className={requestProps.includes(i) ? "selected" : ""} onClick={() => toggle(setRequestProps, requestProps, i)} key={i}>{BOARD[i].name}{ownership[i].houses > 0 ? " · sell buildings first" : ""}</button>)}</div>
       </div>
     </div>
-    <p className="trade-note">Local table mode: {target?.name} can accept or reject this offer now.</p>
+    <p className="trade-note">Pass-and-play accepts at the table. Online trades synchronize directly between peers.</p>
     <div className="modal-actions"><button className="secondary" onClick={onClose}>Reject</button><button className="primary" disabled={offerMoney > currentPlayer.money || requestMoney > (target?.money || 0)} onClick={() => onTrade({ targetId, offerMoney, requestMoney, offerProps, requestProps })}><Handshake /> Accept trade</button></div>
   </section></div>;
 }
 
-function AuctionModal({ property, players, onClose, onWin }) {
+function AuctionModal({ property, players, canAct, onClose, onWin }) {
   const eligible = players.filter((p) => !p.bankrupt && p.money > 0);
   const [bidderId, setBidderId] = useState(eligible[0]?.id);
   const bidder = players.find((p) => p.id === bidderId);
@@ -143,7 +219,7 @@ function AuctionModal({ property, players, onClose, onWin }) {
     <p className="trade-note">The property was declined. Pass the device around and agree on the highest bid.</p>
     <label>Winning bidder<select value={bidderId} onChange={(e) => { setBidderId(e.target.value); setBid(10); }}>{eligible.map((p) => <option value={p.id} key={p.id}>{p.name} · {money(p.money)}</option>)}</select></label>
     <label>Winning bid<input type="number" min="1" max={bidder?.money || 0} value={bid} onChange={(e) => setBid(+e.target.value)} /></label>
-    <div className="modal-actions"><button className="secondary" onClick={onClose}>No bids</button><button className="primary" disabled={!bid || bid > (bidder?.money || 0)} onClick={() => onWin(bidderId, bid)}>Award property</button></div>
+    <div className="modal-actions"><button className="secondary" disabled={!canAct} onClick={onClose}>No bids</button><button className="primary" disabled={!canAct || !bid || bid > (bidder?.money || 0)} onClick={() => onWin(bidderId, bid)}>Award property</button></div>
   </section></div>;
 }
 
@@ -163,10 +239,29 @@ function Game({ setup, onExit }) {
   const [auction, setAuction] = useState(null);
   const [log, setLog] = useState([`The table is set. ${setup.players[0].name} has the first turn.`]);
   const currentPlayer = players[turn];
+  const canAct = !setup.online || currentPlayer.peerId === setup.localPeerId;
   const activePlayers = players.filter((p) => !p.bankrupt);
   const winner = activePlayers.length === 1 ? activePlayers[0] : null;
+  const receivingState = useRef(false);
+  const [syncAction] = useState(() => setup.online ? setup.network.room.makeAction("game-state") : null);
   const addLog = (text) => setLog((items) => [text, ...items].slice(0, 30));
   const updatePlayer = (id, fn) => setPlayers((list) => list.map((p) => p.id === id ? fn(p) : p));
+
+  useEffect(() => {
+    if (!syncAction) return;
+    syncAction.onMessage = (state) => {
+      receivingState.current = true;
+      setPlayers(state.players); setOwnership(state.ownership); setTurn(state.turn); setDice(state.dice);
+      setRolling(state.rolling); setRolled(state.rolled); setExtraTurn(state.extraTurn); setDoublesCount(state.doublesCount);
+      setPendingBuy(state.pendingBuy); setCard(state.card); setAuction(state.auction); setLog(state.log);
+      setTimeout(() => { receivingState.current = false; }, 0);
+    };
+  }, [syncAction]);
+
+  useEffect(() => {
+    if (!syncAction || receivingState.current || !canAct) return;
+    syncAction.send({ players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, log });
+  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, log, canAct, syncAction]);
 
   const settleSpace = (playerId, position, total, workingPlayers = players) => {
     const space = BOARD[position];
@@ -341,14 +436,14 @@ function Game({ setup, onExit }) {
     <section className="game-layout">
       <aside className="left-rail panel"><div className="panel-title"><span><Users /> Players</span><small>{activePlayers.length} left</small></div>
         <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} onTrade={setTradeTarget} />)}</div>
-        <button className="trade-button" onClick={() => setTradeTarget(true)}><Handshake /> Propose a trade</button>
+        <button className="trade-button" disabled={!canAct} onClick={() => setTradeTarget(true)}><Handshake /> Propose a trade</button>
       </aside>
       <section className="board-stage"><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} />
         <div className="turn-controls">
           <div className="turn-copy"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
-          {currentPlayer.inJail && !rolled && <button className="secondary" disabled={currentPlayer.money < 50} onClick={() => { charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
-          {pendingBuy !== null && <button className="primary buy-button" disabled={currentPlayer.money < BOARD[pendingBuy].price} onClick={buyProperty}>Buy · {money(BOARD[pendingBuy].price)}</button>}
-          {!rolled ? <button className="roll-button" onClick={rollDice} disabled={rolling}><DiceFive /> {rolling ? "Rolling..." : "Roll dice"}</button> : <button className="roll-button" onClick={endTurn} disabled={players.some((p) => !p.bankrupt && p.money < 0)}>End turn <Check /></button>}
+          {currentPlayer.inJail && !rolled && <button className="secondary" disabled={!canAct || currentPlayer.money < 50} onClick={() => { charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
+          {pendingBuy !== null && <button className="primary buy-button" disabled={!canAct || currentPlayer.money < BOARD[pendingBuy].price} onClick={buyProperty}>Buy · {money(BOARD[pendingBuy].price)}</button>}
+          {!rolled ? <button className="roll-button" onClick={rollDice} disabled={!canAct || rolling}><DiceFive /> {canAct ? rolling ? "Rolling..." : "Roll dice" : `Waiting for ${currentPlayer.name}`}</button> : <button className="roll-button" onClick={endTurn} disabled={!canAct || players.some((p) => !p.bankrupt && p.money < 0)}>End turn <Check /></button>}
         </div>
       </section>
       <aside className="right-rail">
@@ -360,15 +455,16 @@ function Game({ setup, onExit }) {
         <section className="panel event-log"><div className="panel-title"><span><ChatCircleDots /> Table talk</span><i /></div><div className="log-list">{log.map((item, i) => <p key={`${item}-${i}`}><span>{i === 0 ? "NOW" : `${i + 1}`}</span>{item}</p>)}</div></section>
       </aside>
     </section>
-    {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
+    {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, canAct, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
     {card && <div className="modal-backdrop" onClick={() => setCard(null)}><section className={`drawn-card ${card.type}`} onClick={(e) => e.stopPropagation()}><span>{card.type === "chance" ? "?" : "★"}</span><small>{card.type === "chance" ? "CHANCE" : "COMMUNITY CHEST"}</small><h2>{card.text}</h2><button className="primary" onClick={() => setCard(null)}>Got it</button></section></div>}
     {tradeTarget && <TradeModal {...{ players, currentPlayer, ownership }} initialTarget={tradeTarget === true ? null : tradeTarget} onClose={() => setTradeTarget(null)} onTrade={makeTrade} />}
-    {auction !== null && <AuctionModal property={BOARD[auction]} players={players} onClose={closeAuction} onWin={winAuction} />}
+    {auction !== null && <AuctionModal property={BOARD[auction]} players={players} canAct={canAct} onClose={closeAuction} onWin={winAuction} />}
     {winner && <div className="modal-backdrop"><section className="winner-card"><SealCheck /><span className="eyebrow">Game over</span><h1>{winner.name} owns the table.</h1><p>One last deal, one very full property portfolio, and the bragging rights are official.</p><button className="primary big" onClick={onExit}>Back to lobby</button></section></div>}
   </main>;
 }
 
 export default function App() {
   const [game, setGame] = useState(null);
-  return game ? <Game setup={game} onExit={() => setGame(null)} /> : <Lobby onStart={setGame} />;
+  const exitGame = () => { game?.network?.room.leave(); setGame(null); };
+  return game ? <Game setup={game} onExit={exitGame} /> : <Lobby onStart={setGame} />;
 }

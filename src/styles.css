@@ -76,6 +76,7 @@ input, select { width: 100%; height: 46px; padding: 0 13px; border: 1px solid va
 input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(31,111,74,.12); }
 .code-input { font: 800 23px "Space Grotesk"; letter-spacing: .3em; text-transform: uppercase; }
 .join-card .primary { width: 100%; margin-top: 14px; }
+.online-room-card { position: relative; max-width: 680px; margin: 5vh auto; padding: 34px; border-radius: 20px; background: var(--paper); box-shadow: 0 24px 60px rgba(0,0,0,.3); }.online-room-card h2 { margin: 7px 0 22px; font-size: 42px; letter-spacing: -.06em; }.online-profile { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.online-code { width: 100%; margin: 15px 0; }.online-roster { display: grid; gap: 7px; margin: 12px 0 18px; }.online-roster .seat { grid-template-columns: 47px 1fr 12px; }.peer-online, .connection-status i { width: 8px; height: 8px; border-radius: 50%; background: #55d987; box-shadow: 0 0 0 4px rgba(85,217,135,.14); }.connection-status { display: flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--muted); font-size: 10px; }
 .text-button { border: 0; background: none; color: var(--muted); width: 100%; margin-top: 16px; font-weight: 700; }
 .lobby nav { max-width: 1200px; margin: auto; display: flex; justify-content: space-between; align-items: center; }
 .lobby-card { max-width: 1100px; margin: 7vh auto 0; padding: 34px; border-radius: 22px; background: var(--paper); box-shadow: 0 35px 70px rgba(0,0,0,.32); }
@@ -166,6 +167,6 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 }
 @media (max-width: 520px) {
   .welcome-nav, .welcome-grid { padding-left: 18px; padding-right: 18px; }.welcome-actions { display: grid; }.status-pill { display: none; }.table-preview { transform: scale(1.08); }
-  .join-screen, .lobby { padding: 16px; }.join-card { padding: 24px; }.lobby nav .secondary { font-size: 0; width: 42px; padding: 0; }.lobby-bottom .primary { width: 100%; }.table-details { grid-template-columns: 1fr; }.setup-seat { grid-template-columns: 45px 1fr 34px; }.setup-seat select { grid-column: 2 / 4; }.setup-seat .icon-button { grid-column: 3; grid-row: 1; }
+  .join-screen, .lobby { padding: 16px; }.join-card, .online-room-card { padding: 24px; }.online-profile { grid-template-columns: 1fr; }.lobby nav .secondary { font-size: 0; width: 42px; padding: 0; }.lobby-bottom .primary { width: 100%; }.table-details { grid-template-columns: 1fr; }.setup-seat { grid-template-columns: 45px 1fr 34px; }.setup-seat select { grid-column: 2 / 4; }.setup-seat .icon-button { grid-column: 3; grid-row: 1; }
   .game-topbar { padding-left: 2px; padding-right: 2px; }.game-topbar .secondary { font-size: 0; width: 40px; padding: 0; }.turn-copy strong { max-width: 135px; }.turn-controls { flex-wrap: wrap; }.turn-copy { width: calc(100% - 130px); }.buy-button { order: 3; width: 100%; }.left-rail .player-list { grid-template-columns: 1fr; }.trade-columns { grid-template-columns: 1fr; }.winner-card { padding: 30px 20px; }.winner-card h1 { font-size: 38px; }
 }

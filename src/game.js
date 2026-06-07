@@ -76,6 +76,7 @@ export const CHEST = [
 export const createPlayers = (entries) => entries.map((entry, index) => ({
   id: `p${index + 1}`, name: typeof entry === "string" ? entry : entry.name, color: COLORS[index],
   token: typeof entry === "string" ? TOKENS[index] : entry.token,
+  peerId: typeof entry === "string" ? null : entry.peerId || null,
   money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, bankrupt: false, ready: index === 0,
 }));
 

@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
-    "vite": "^6.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {}
+    "react-dom": "^19.0.0",
+    "trystero": "^0.25.1",
+    "vite": "^6.1.0"
+  }
 }
