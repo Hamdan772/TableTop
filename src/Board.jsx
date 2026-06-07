@@ -1,5 +1,6 @@
 import React from "react";
 import { BOARD, GROUP_COLORS } from "./game";
+import { Dice3D, TokenPiece } from "./Pieces";
 
 const gridPosition = (index) => {
   if (index <= 10) return { gridRow: 11, gridColumn: 11 - index };
@@ -21,9 +22,9 @@ function Space({ space, index, ownership, players, selected, onSelect }) {
       <span className="space-name">{space.name.replace(" Avenue", "").replace(" Railroad", " RR")}</span>
       {space.price && <span className="space-price">${space.price}</span>}
       {ownership.owner && <span className="owner-dot" style={{ background: players.find((p) => p.id === ownership.owner)?.color }} />}
-      {ownership.houses > 0 && <span className="houses">{ownership.houses === 5 ? "HOTEL" : "■".repeat(ownership.houses)}</span>}
+      {ownership.houses > 0 && <span className="houses">{ownership.houses === 5 ? <i className="hotel-model" /> : Array.from({ length: ownership.houses }).map((_, i) => <i className="house-model" key={i} />)}</span>}
       <span className="tokens">
-        {occupants.map((player) => <span className="token" style={{ "--token": player.color }} key={player.id}>{player.glyph}</span>)}
+        {occupants.map((player) => <TokenPiece token={player.token} color={player.color} small key={player.id} />)}
       </span>
     </button>
   );
@@ -41,7 +42,7 @@ export default function Board({ players, ownership, selected, onSelect, dice, ro
           <h1>MONOPOLY</h1>
           <p>Room for big moves and bad deals.</p>
           <div className={`dice-pair ${rolling ? "rolling" : ""}`}>
-            {dice.map((die, index) => <div className="die" key={index}>{die}</div>)}
+            {dice.map((die, index) => <Dice3D value={die} rolling={rolling} second={index === 1} key={index} />)}
           </div>
           <div className="center-decks">
             <span>COMMUNITY CHEST</span>

@@ -1,53 +1,52 @@
 export const COLORS = ["#ff6b6b", "#4dabf7", "#ffd43b", "#69db7c", "#da77f2", "#ffa94d", "#38d9a9", "#f06595"];
 export const TOKENS = ["Top Hat", "Race Car", "Scottie", "Boot", "Thimble", "Ship", "Cat", "Duck"];
-export const TOKEN_GLYPHS = ["♜", "◆", "♞", "●", "♟", "▲", "★", "✦"];
 
-const p = (name, price, rent, group, houseCost) => ({ name, type: "property", price, rent, group, houseCost });
+const p = (name, price, rents, group, houseCost) => ({ name, type: "property", price, rent: rents[0], rents, group, houseCost });
 const rr = (name) => ({ name, type: "railroad", price: 200, rent: 25, group: "railroad" });
 const util = (name) => ({ name, type: "utility", price: 150, rent: 0, group: "utility" });
 const special = (name, type, note = "") => ({ name, type, note });
 
 export const BOARD = [
   special("GO", "go", "Collect $200"),
-  p("Mediterranean Avenue", 60, 2, "brown", 50),
+  p("Mediterranean Avenue", 60, [2, 10, 30, 90, 160, 250], "brown", 50),
   special("Community Chest", "chest"),
-  p("Baltic Avenue", 60, 4, "brown", 50),
+  p("Baltic Avenue", 60, [4, 20, 60, 180, 320, 450], "brown", 50),
   special("Income Tax", "tax", "Pay $200"),
   rr("Reading Railroad"),
-  p("Oriental Avenue", 100, 6, "lightblue", 50),
+  p("Oriental Avenue", 100, [6, 30, 90, 270, 400, 550], "lightblue", 50),
   special("Chance", "chance"),
-  p("Vermont Avenue", 100, 6, "lightblue", 50),
-  p("Connecticut Avenue", 120, 8, "lightblue", 50),
+  p("Vermont Avenue", 100, [6, 30, 90, 270, 400, 550], "lightblue", 50),
+  p("Connecticut Avenue", 120, [8, 40, 100, 300, 450, 600], "lightblue", 50),
   special("Jail / Just Visiting", "jail"),
-  p("St. Charles Place", 140, 10, "pink", 100),
+  p("St. Charles Place", 140, [10, 50, 150, 450, 625, 750], "pink", 100),
   util("Electric Company"),
-  p("States Avenue", 140, 10, "pink", 100),
-  p("Virginia Avenue", 160, 12, "pink", 100),
+  p("States Avenue", 140, [10, 50, 150, 450, 625, 750], "pink", 100),
+  p("Virginia Avenue", 160, [12, 60, 180, 500, 700, 900], "pink", 100),
   rr("Pennsylvania Railroad"),
-  p("St. James Place", 180, 14, "orange", 100),
+  p("St. James Place", 180, [14, 70, 200, 550, 750, 950], "orange", 100),
   special("Community Chest", "chest"),
-  p("Tennessee Avenue", 180, 14, "orange", 100),
-  p("New York Avenue", 200, 16, "orange", 100),
+  p("Tennessee Avenue", 180, [14, 70, 200, 550, 750, 950], "orange", 100),
+  p("New York Avenue", 200, [16, 80, 220, 600, 800, 1000], "orange", 100),
   special("Free Parking", "parking", "Take a breath"),
-  p("Kentucky Avenue", 220, 18, "red", 150),
+  p("Kentucky Avenue", 220, [18, 90, 250, 700, 875, 1050], "red", 150),
   special("Chance", "chance"),
-  p("Indiana Avenue", 220, 18, "red", 150),
-  p("Illinois Avenue", 240, 20, "red", 150),
+  p("Indiana Avenue", 220, [18, 90, 250, 700, 875, 1050], "red", 150),
+  p("Illinois Avenue", 240, [20, 100, 300, 750, 925, 1100], "red", 150),
   rr("B. & O. Railroad"),
-  p("Atlantic Avenue", 260, 22, "yellow", 150),
-  p("Ventnor Avenue", 260, 22, "yellow", 150),
+  p("Atlantic Avenue", 260, [22, 110, 330, 800, 975, 1150], "yellow", 150),
+  p("Ventnor Avenue", 260, [22, 110, 330, 800, 975, 1150], "yellow", 150),
   util("Water Works"),
-  p("Marvin Gardens", 280, 24, "yellow", 150),
+  p("Marvin Gardens", 280, [24, 120, 360, 850, 1025, 1200], "yellow", 150),
   special("Go To Jail", "gotojail"),
-  p("Pacific Avenue", 300, 26, "green", 200),
-  p("North Carolina Avenue", 300, 26, "green", 200),
+  p("Pacific Avenue", 300, [26, 130, 390, 900, 1100, 1275], "green", 200),
+  p("North Carolina Avenue", 300, [26, 130, 390, 900, 1100, 1275], "green", 200),
   special("Community Chest", "chest"),
-  p("Pennsylvania Avenue", 320, 28, "green", 200),
+  p("Pennsylvania Avenue", 320, [28, 150, 450, 1000, 1200, 1400], "green", 200),
   rr("Short Line"),
   special("Chance", "chance"),
-  p("Park Place", 350, 35, "darkblue", 200),
+  p("Park Place", 350, [35, 175, 500, 1100, 1300, 1500], "darkblue", 200),
   special("Luxury Tax", "tax", "Pay $100"),
-  p("Boardwalk", 400, 50, "darkblue", 200),
+  p("Boardwalk", 400, [50, 200, 600, 1400, 1700, 2000], "darkblue", 200),
 ];
 
 export const GROUP_COLORS = {
@@ -74,8 +73,9 @@ export const CHEST = [
   { text: "Holiday fund matures. Receive $100.", money: 100 },
 ];
 
-export const createPlayers = (names) => names.map((name, index) => ({
-  id: `p${index + 1}`, name, color: COLORS[index], token: TOKENS[index], glyph: TOKEN_GLYPHS[index],
+export const createPlayers = (entries) => entries.map((entry, index) => ({
+  id: `p${index + 1}`, name: typeof entry === "string" ? entry : entry.name, color: COLORS[index],
+  token: typeof entry === "string" ? TOKENS[index] : entry.token,
   money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, bankrupt: false, ready: index === 0,
 }));
 
@@ -93,8 +93,7 @@ export function calculateRent(space, ownership, owner, diceTotal = 7) {
     const count = owner.properties.filter((i) => BOARD[i].type === "utility").length;
     return diceTotal * (count === 2 ? 10 : 4);
   }
-  if (ownership.houses === 5) return space.rent * 12;
-  if (ownership.houses > 0) return space.rent * (ownership.houses * 2 + 2);
+  if (ownership.houses > 0) return space.rents[ownership.houses];
   const group = owner.properties.filter((i) => BOARD[i].group === space.group).length;
   const groupSize = BOARD.filter((s) => s.group === space.group).length;
   return space.rent * (group === groupSize ? 2 : 1);

@@ -1,61 +1,51 @@
 import React, { useMemo, useState } from "react";
 import {
-  Buildings, ChatCircleDots, Check, Copy, DiceFive, DoorOpen,
-  Handshake, House, Money, Plus, SealCheck, Users, X,
+  Buildings, ChatCircleDots, Check, Copy, DiceFive, Handshake, House,
+  Money, Plus, SealCheck, Trash, Users, X,
 } from "@phosphor-icons/react";
 import Board from "./Board";
 import {
-  BOARD, CHANCE, CHEST, calculateRent, createPlayers, initialOwnership, money,
+  BOARD, CHANCE, CHEST, TOKENS, calculateRent, createPlayers, initialOwnership, money,
 } from "./game";
+import { TokenPiece } from "./Pieces";
 
-const sampleNames = ["Maya", "Noah", "Zoe", "Eli"];
 const randomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 
 function Lobby({ onStart }) {
   const [mode, setMode] = useState("home");
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("Maya");
-  const [players, setPlayers] = useState(createPlayers(sampleNames));
+  const [tableName, setTableName] = useState("Friday Game Night");
+  const [players, setPlayers] = useState([{ name: "Player 1", token: TOKENS[0] }, { name: "Player 2", token: TOKENS[1] }]);
   const [roomCode] = useState(randomCode());
 
-  const toggleReady = (id) => setPlayers((list) => list.map((p) => p.id === id ? { ...p, ready: !p.ready } : p));
+  const updateSeat = (index, key, value) => setPlayers((list) => list.map((player, i) => i === index ? { ...player, [key]: value } : player));
+  const addPlayer = () => setPlayers((list) => list.length < 8 ? [...list, { name: `Player ${list.length + 1}`, token: TOKENS.find((token) => !list.some((p) => p.token === token)) }] : list);
+  const removePlayer = (index) => setPlayers((list) => list.length > 2 ? list.filter((_, i) => i !== index) : list);
+  const canStart = players.length >= 2 && players.every((p) => p.name.trim()) && new Set(players.map((p) => p.token)).size === players.length;
 
   if (mode === "home") return (
     <main className="welcome">
-      <nav className="welcome-nav"><Brand /><span className="status-pill"><i /> Friends online</span></nav>
+      <nav className="welcome-nav"><Brand /><span className="status-pill"><i /> Local pass-and-play</span></nav>
       <section className="welcome-grid">
         <div className="welcome-copy">
           <span className="eyebrow">Tonight's table is open</span>
           <h1>Board game night,<br /><em>minus the cleanup.</em></h1>
           <p>Classic games, cozy rooms, and just enough friendly chaos to keep the group chat alive.</p>
           <div className="welcome-actions">
-            <button className="primary big" onClick={() => setMode("create")}><Plus /> Create a room</button>
-            <button className="secondary big" onClick={() => setMode("join")}><DoorOpen /> Join with code</button>
+            <button className="primary big" onClick={() => setMode("create")}><Plus /> Set the table</button>
           </div>
           <div className="friend-strip">
-            {sampleNames.map((n, i) => <span key={n} style={{ "--friend": ["#ff6b6b", "#4dabf7", "#ffd43b", "#69db7c"][i] }}>{n[0]}</span>)}
-            <p><strong>12,482</strong> game nights hosted this week</p>
+            <p><strong>No accounts. No servers.</strong> One screen, two to eight friends, a complete game.</p>
           </div>
         </div>
         <div className="table-preview">
           <div className="preview-board"><b>MONOPOLY</b><span>Game night starts here</span></div>
-          <span className="preview-piece p1">♜</span><span className="preview-piece p2">◆</span>
+          <span className="preview-piece p1"><TokenPiece token="Top Hat" color="#ff6b6b" /></span><span className="preview-piece p2"><TokenPiece token="Race Car" color="#4dabf7" /></span>
           <div className="preview-die d1">5</div><div className="preview-die d2">2</div>
-          <div className="voice-bubble"><ChatCircleDots /> Maya: Boardwalk is mine.</div>
+          <div className="voice-bubble"><ChatCircleDots /> Pass the dice, not a login.</div>
         </div>
       </section>
-      <footer className="welcome-footer"><span>TableTop</span><span>Monopoly is the first table. More classics are coming.</span></footer>
+      <footer className="welcome-footer"><span>TableTop</span><span>A complete local Monopoly table.</span></footer>
     </main>
-  );
-
-  if (mode === "join") return (
-    <main className="join-screen"><Brand /><section className="join-card">
-      <span className="eyebrow">Find your friends</span><h2>Join a table</h2>
-      <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label>Room code<input className="code-input" maxLength="4" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABCD" /></label>
-      <button className="primary big" disabled={code.length < 4 || !name.trim()} onClick={() => setMode("create")}>Join room</button>
-      <button className="text-button" onClick={() => setMode("home")}>Back to home</button>
-    </section></main>
   );
 
   return (
@@ -63,36 +53,37 @@ function Lobby({ onStart }) {
       <nav><Brand /><button className="secondary" onClick={() => setMode("home")}><X /> Leave room</button></nav>
       <section className="lobby-card">
         <div className="lobby-head">
-          <div><span className="eyebrow">Maya's game night</span><h1>Pull up a chair.</h1><p>Everyone marks ready, then the host gets the dice rolling.</p></div>
-          <button className="room-code" onClick={() => navigator.clipboard?.writeText(roomCode)}><span>ROOM CODE</span><strong>{roomCode}</strong><Copy /></button>
+          <div><span className="eyebrow">Local table setup</span><h1>Choose your pieces.</h1><p>Name every player and pick a unique token. Everything runs on this device.</p></div>
+          <div className="table-details"><label>Table name<input value={tableName} onChange={(e) => setTableName(e.target.value)} /></label><button className="room-code" onClick={() => navigator.clipboard?.writeText(roomCode)}><span>GAME ID</span><strong>{roomCode}</strong><Copy /></button></div>
         </div>
-        <div className="seats">
-          {players.map((player, index) => <article className="seat" key={player.id}>
-            <div className="seat-avatar" style={{ "--player": player.color }}>{player.glyph}</div>
-            <div><strong>{player.name}</strong><span>{index === 0 ? "Host · " : ""}{player.token}</span></div>
-            <button className={player.ready ? "ready is-ready" : "ready"} onClick={() => toggleReady(player.id)}>{player.ready ? <><Check /> Ready</> : "Not ready"}</button>
+        <div className="seats setup-seats">
+          {players.map((player, index) => <article className="seat setup-seat" key={index}>
+            <div className="seat-avatar" style={{ "--player": ["#ff6b6b", "#4dabf7", "#ffd43b", "#69db7c", "#da77f2", "#ffa94d", "#38d9a9", "#f06595"][index] }}><TokenPiece token={player.token} color="currentColor" /></div>
+            <input aria-label={`Player ${index + 1} name`} value={player.name} onChange={(e) => updateSeat(index, "name", e.target.value)} />
+            <select aria-label={`Player ${index + 1} token`} value={player.token} onChange={(e) => updateSeat(index, "token", e.target.value)}>{TOKENS.map((token) => <option disabled={players.some((p, i) => i !== index && p.token === token)} key={token}>{token}</option>)}</select>
+            <button className="icon-button" disabled={players.length <= 2} onClick={() => removePlayer(index)} title="Remove player"><Trash /></button>
           </article>)}
-          {Array.from({ length: 8 - players.length }).map((_, i) => <article className="seat empty" key={i}><div className="seat-avatar"><Plus /></div><div><strong>Open seat</strong><span>Share the room code</span></div></article>)}
+          {players.length < 8 && <button className="seat add-seat" onClick={addPlayer}><div className="seat-avatar"><Plus /></div><div><strong>Add player</strong><span>{8 - players.length} seats remaining</span></div></button>}
         </div>
-        <div className="lobby-bottom"><p><Users /> {players.length} of 8 seats filled</p><button className="primary big" onClick={() => onStart(players)}>Start game <DiceFive /></button></div>
+        <div className="lobby-bottom"><p><Users /> {players.length} players · {tableName || "Untitled table"}</p><button className="primary big" disabled={!canStart} onClick={() => onStart({ players: createPlayers(players), roomCode, tableName })}>Start game <DiceFive /></button></div>
       </section>
     </main>
   );
 }
 
 function Brand() {
-  return <div className="brand"><span>TT</span><strong>TableTop</strong><small>GAME NIGHT</small></div>;
+  return <div className="brand"><img src={`${import.meta.env.BASE_URL}assets/tabletop-logo.png`} alt="" /><strong>TableTop</strong><small>GAME NIGHT</small></div>;
 }
 
 function PlayerCard({ player, active, onTrade }) {
   return <article className={`player-card ${active ? "active" : ""} ${player.bankrupt ? "bankrupt" : ""}`}>
-    <div className="player-avatar" style={{ "--player": player.color }}>{player.glyph}<i /></div>
+    <div className="player-avatar" style={{ "--player": player.color }}><TokenPiece token={player.token} color={player.color} /><i /></div>
     <div className="player-meta"><strong>{player.name}</strong><span>{player.bankrupt ? "Bankrupt" : money(player.money)}</span></div>
     {!player.bankrupt && <button className="icon-button" onClick={() => onTrade(player.id)} title={`Trade with ${player.name}`}><Handshake /></button>}
   </article>;
 }
 
-function PropertyPanel({ index, ownership, players, currentPlayer, onBuyBuilding, onMortgage, onClose }) {
+function PropertyPanel({ index, ownership, players, currentPlayer, onBuyBuilding, onSellBuilding, onMortgage, onClose }) {
   const space = BOARD[index];
   const state = ownership[index];
   const owner = players.find((p) => p.id === state.owner);
@@ -100,17 +91,18 @@ function PropertyPanel({ index, ownership, players, currentPlayer, onBuyBuilding
   return <aside className="drawer">
     <button className="drawer-close" onClick={onClose}><X /></button>
     <div className={`property-hero group-${space.group || space.type}`}><span>{space.type}</span><h2>{space.name}</h2>{space.price && <strong>{money(space.price)}</strong>}</div>
-    <div className="property-owner">{owner ? <><span style={{ background: owner.color }}>{owner.glyph}</span><p>Owned by <strong>{owner.name}</strong></p></> : <><span className="bank-mark">B</span><p>Available from the <strong>Bank</strong></p></>}</div>
+    <div className="property-owner">{owner ? <><span style={{ background: owner.color }}><TokenPiece token={owner.token} color={owner.color} /></span><p>Owned by <strong>{owner.name}</strong></p></> : <><span className="bank-mark">B</span><p>Available from the <strong>Bank</strong></p></>}</div>
     {space.type === "property" && <div className="rent-table">
       <div><span>Base rent</span><strong>{money(space.rent)}</strong></div>
-      <div><span>With 1 house</span><strong>{money(space.rent * 4)}</strong></div>
-      <div><span>With hotel</span><strong>{money(space.rent * 12)}</strong></div>
+      {space.rents.slice(1, 5).map((rent, i) => <div key={rent}><span>With {i + 1} house{i ? "s" : ""}</span><strong>{money(rent)}</strong></div>)}
+      <div><span>With hotel</span><strong>{money(space.rents[5])}</strong></div>
       <div><span>Building cost</span><strong>{money(space.houseCost)}</strong></div>
     </div>}
     {space.note && <p className="panel-note">{space.note}</p>}
     {owner && <div className="property-state"><span>{state.mortgaged ? "Mortgaged" : `${state.houses === 5 ? "Hotel" : `${state.houses} houses`}`}</span></div>}
     {canManage && <div className="manage-actions">
       {space.type === "property" && <button className="primary" disabled={state.mortgaged || state.houses >= 5 || currentPlayer.money < space.houseCost} onClick={() => onBuyBuilding(index)}><House /> {state.houses === 4 ? "Buy hotel" : "Buy house"}</button>}
+      {space.type === "property" && state.houses > 0 && <button className="secondary" onClick={() => onSellBuilding(index)}>Sell building</button>}
       <button className="secondary" disabled={state.houses > 0} onClick={() => onMortgage(index)}><Money /> {state.mortgaged ? "Unmortgage" : "Mortgage"}</button>
     </div>}
   </aside>;
@@ -130,29 +122,46 @@ function TradeModal({ players, currentPlayer, ownership, initialTarget, onClose,
     <label>Trading partner<select value={targetId} onChange={(e) => { setTargetId(e.target.value); setRequestProps([]); }}>{possible.map((p) => <option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
     <div className="trade-columns">
       <div><h3>You offer</h3><label>Cash<input type="number" min="0" max={currentPlayer.money} value={offerMoney} onChange={(e) => setOfferMoney(+e.target.value)} /></label>
-        <div className="trade-props">{currentPlayer.properties.map((i) => <button className={offerProps.includes(i) ? "selected" : ""} onClick={() => toggle(setOfferProps, offerProps, i)} key={i}>{BOARD[i].name}</button>)}</div>
+        <div className="trade-props">{currentPlayer.properties.map((i) => <button disabled={ownership[i].houses > 0} className={offerProps.includes(i) ? "selected" : ""} onClick={() => toggle(setOfferProps, offerProps, i)} key={i}>{BOARD[i].name}{ownership[i].houses > 0 ? " · sell buildings first" : ""}</button>)}</div>
       </div>
       <div><h3>You request</h3><label>Cash<input type="number" min="0" max={target?.money || 0} value={requestMoney} onChange={(e) => setRequestMoney(+e.target.value)} /></label>
-        <div className="trade-props">{target?.properties.map((i) => <button className={requestProps.includes(i) ? "selected" : ""} onClick={() => toggle(setRequestProps, requestProps, i)} key={i}>{BOARD[i].name}</button>)}</div>
+        <div className="trade-props">{target?.properties.map((i) => <button disabled={ownership[i].houses > 0} className={requestProps.includes(i) ? "selected" : ""} onClick={() => toggle(setRequestProps, requestProps, i)} key={i}>{BOARD[i].name}{ownership[i].houses > 0 ? " · sell buildings first" : ""}</button>)}</div>
       </div>
     </div>
     <p className="trade-note">Local table mode: {target?.name} can accept or reject this offer now.</p>
-    <div className="modal-actions"><button className="secondary" onClick={onClose}>Reject</button><button className="primary" onClick={() => onTrade({ targetId, offerMoney, requestMoney, offerProps, requestProps })}><Handshake /> Accept trade</button></div>
+    <div className="modal-actions"><button className="secondary" onClick={onClose}>Reject</button><button className="primary" disabled={offerMoney > currentPlayer.money || requestMoney > (target?.money || 0)} onClick={() => onTrade({ targetId, offerMoney, requestMoney, offerProps, requestProps })}><Handshake /> Accept trade</button></div>
   </section></div>;
 }
 
-function Game({ initialPlayers, onExit }) {
-  const [players, setPlayers] = useState(initialPlayers);
+function AuctionModal({ property, players, onClose, onWin }) {
+  const eligible = players.filter((p) => !p.bankrupt && p.money > 0);
+  const [bidderId, setBidderId] = useState(eligible[0]?.id);
+  const bidder = players.find((p) => p.id === bidderId);
+  const [bid, setBid] = useState(Math.min(10, bidder?.money || 0));
+  return <div className="modal-backdrop"><section className="trade-modal auction-modal">
+    <div className="modal-head"><div><span className="eyebrow">Bank auction</span><h2>{property.name}</h2></div></div>
+    <p className="trade-note">The property was declined. Pass the device around and agree on the highest bid.</p>
+    <label>Winning bidder<select value={bidderId} onChange={(e) => { setBidderId(e.target.value); setBid(10); }}>{eligible.map((p) => <option value={p.id} key={p.id}>{p.name} · {money(p.money)}</option>)}</select></label>
+    <label>Winning bid<input type="number" min="1" max={bidder?.money || 0} value={bid} onChange={(e) => setBid(+e.target.value)} /></label>
+    <div className="modal-actions"><button className="secondary" onClick={onClose}>No bids</button><button className="primary" disabled={!bid || bid > (bidder?.money || 0)} onClick={() => onWin(bidderId, bid)}>Award property</button></div>
+  </section></div>;
+}
+
+function Game({ setup, onExit }) {
+  const [players, setPlayers] = useState(setup.players);
   const [ownership, setOwnership] = useState(initialOwnership);
   const [turn, setTurn] = useState(0);
   const [dice, setDice] = useState([1, 1]);
   const [rolling, setRolling] = useState(false);
   const [rolled, setRolled] = useState(false);
+  const [extraTurn, setExtraTurn] = useState(false);
+  const [doublesCount, setDoublesCount] = useState(0);
   const [pendingBuy, setPendingBuy] = useState(null);
   const [selected, setSelected] = useState(null);
   const [card, setCard] = useState(null);
   const [tradeTarget, setTradeTarget] = useState(null);
-  const [log, setLog] = useState(["The table is set. Maya has the first turn."]);
+  const [auction, setAuction] = useState(null);
+  const [log, setLog] = useState([`The table is set. ${setup.players[0].name} has the first turn.`]);
   const currentPlayer = players[turn];
   const activePlayers = players.filter((p) => !p.bankrupt);
   const winner = activePlayers.length === 1 ? activePlayers[0] : null;
@@ -229,6 +238,13 @@ function Game({ initialPlayers, onExit }) {
         }
         return;
       }
+      if (next[0] === next[1] && doublesCount >= 2) {
+        setExtraTurn(false); setDoublesCount(0); sendToJail(currentPlayer.id);
+        addLog(`${currentPlayer.name} rolled three doubles and went to Jail.`);
+        return;
+      }
+      setExtraTurn(next[0] === next[1]);
+      setDoublesCount(next[0] === next[1] ? doublesCount + 1 : 0);
       const old = currentPlayer.position;
       const position = (old + total) % 40;
       const passedGo = old + total >= 40;
@@ -248,12 +264,32 @@ function Game({ initialPlayers, onExit }) {
     setPendingBuy(null);
   };
   const endTurn = () => {
-    if (pendingBuy !== null) setPendingBuy(null);
+    if (pendingBuy !== null) { setAuction(pendingBuy); setPendingBuy(null); return; }
+    finishTurn();
+  };
+  const closeAuction = () => {
+    setAuction(null);
+    finishTurn();
+  };
+  const finishTurn = () => {
     const negative = players.find((p) => !p.bankrupt && p.money < 0);
     if (negative) return;
+    if (extraTurn && !currentPlayer.inJail) {
+      setRolled(false); setExtraTurn(false); setSelected(null); setCard(null);
+      addLog(`${currentPlayer.name} rolled doubles and gets another turn.`);
+      return;
+    }
     let next = (turn + 1) % players.length;
     while (players[next].bankrupt) next = (next + 1) % players.length;
-    setTurn(next); setRolled(false); setSelected(null); setCard(null);
+    setTurn(next); setRolled(false); setDoublesCount(0); setSelected(null); setCard(null);
+  };
+  const winAuction = (bidderId, bid) => {
+    const space = BOARD[auction];
+    setPlayers((list) => list.map((p) => p.id === bidderId ? { ...p, money: p.money - bid, properties: [...p.properties, auction] } : p));
+    setOwnership((all) => ({ ...all, [auction]: { ...all[auction], owner: bidderId } }));
+    addLog(`${players.find((p) => p.id === bidderId)?.name} won ${space.name} at auction for ${money(bid)}.`);
+    setAuction(null);
+    setTimeout(finishTurn, 0);
   };
   const declareBankruptcy = () => {
     const id = currentPlayer.id;
@@ -272,6 +308,13 @@ function Game({ initialPlayers, onExit }) {
     updatePlayer(currentPlayer.id, (p) => ({ ...p, money: p.money - space.houseCost }));
     setOwnership((all) => ({ ...all, [index]: { ...all[index], houses: all[index].houses + 1 } }));
     addLog(`${currentPlayer.name} built ${ownership[index].houses === 4 ? "a hotel" : "a house"} on ${space.name}.`);
+  };
+  const sellBuilding = (index) => {
+    const space = BOARD[index];
+    if (ownership[index].houses <= 0) return;
+    updatePlayer(currentPlayer.id, (p) => ({ ...p, money: p.money + Math.floor(space.houseCost / 2) }));
+    setOwnership((all) => ({ ...all, [index]: { ...all[index], houses: all[index].houses - 1 } }));
+    addLog(`${currentPlayer.name} sold a building on ${space.name} for ${money(Math.floor(space.houseCost / 2))}.`);
   };
   const mortgage = (index) => {
     const space = BOARD[index]; const state = ownership[index];
@@ -294,7 +337,7 @@ function Game({ initialPlayers, onExit }) {
 
   const owned = useMemo(() => currentPlayer.properties.map((i) => ({ index: i, ...BOARD[i], ...ownership[i] })), [currentPlayer, ownership]);
   return <main className="game-shell">
-    <header className="game-topbar"><Brand /><div className="room-mini"><span>ROOM</span><strong>7K2M</strong></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}>{currentPlayer.glyph}</span><div><small>CURRENT TURN</small><strong>{currentPlayer.name}</strong></div></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
+    <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}</span><strong>{setup.roomCode}</strong></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN</small><strong>{currentPlayer.name}</strong></div></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
     <section className="game-layout">
       <aside className="left-rail panel"><div className="panel-title"><span><Users /> Players</span><small>{activePlayers.length} left</small></div>
         <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} onTrade={setTradeTarget} />)}</div>
@@ -302,7 +345,7 @@ function Game({ initialPlayers, onExit }) {
       </aside>
       <section className="board-stage"><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} />
         <div className="turn-controls">
-          <div className="turn-copy"><span style={{ background: currentPlayer.color }}>{currentPlayer.glyph}</span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
+          <div className="turn-copy"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
           {currentPlayer.inJail && !rolled && <button className="secondary" disabled={currentPlayer.money < 50} onClick={() => { charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
           {pendingBuy !== null && <button className="primary buy-button" disabled={currentPlayer.money < BOARD[pendingBuy].price} onClick={buyProperty}>Buy · {money(BOARD[pendingBuy].price)}</button>}
           {!rolled ? <button className="roll-button" onClick={rollDice} disabled={rolling}><DiceFive /> {rolling ? "Rolling..." : "Roll dice"}</button> : <button className="roll-button" onClick={endTurn} disabled={players.some((p) => !p.bankrupt && p.money < 0)}>End turn <Check /></button>}
@@ -317,14 +360,15 @@ function Game({ initialPlayers, onExit }) {
         <section className="panel event-log"><div className="panel-title"><span><ChatCircleDots /> Table talk</span><i /></div><div className="log-list">{log.map((item, i) => <p key={`${item}-${i}`}><span>{i === 0 ? "NOW" : `${i + 1}`}</span>{item}</p>)}</div></section>
       </aside>
     </section>
-    {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, onBuyBuilding: buyBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
+    {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
     {card && <div className="modal-backdrop" onClick={() => setCard(null)}><section className={`drawn-card ${card.type}`} onClick={(e) => e.stopPropagation()}><span>{card.type === "chance" ? "?" : "★"}</span><small>{card.type === "chance" ? "CHANCE" : "COMMUNITY CHEST"}</small><h2>{card.text}</h2><button className="primary" onClick={() => setCard(null)}>Got it</button></section></div>}
     {tradeTarget && <TradeModal {...{ players, currentPlayer, ownership }} initialTarget={tradeTarget === true ? null : tradeTarget} onClose={() => setTradeTarget(null)} onTrade={makeTrade} />}
+    {auction !== null && <AuctionModal property={BOARD[auction]} players={players} onClose={closeAuction} onWin={winAuction} />}
     {winner && <div className="modal-backdrop"><section className="winner-card"><SealCheck /><span className="eyebrow">Game over</span><h1>{winner.name} owns the table.</h1><p>One last deal, one very full property portfolio, and the bragging rights are official.</p><button className="primary big" onClick={onExit}>Back to lobby</button></section></div>}
   </main>;
 }
 
 export default function App() {
   const [game, setGame] = useState(null);
-  return game ? <Game initialPlayers={game} onExit={() => setGame(null)} /> : <Lobby onStart={setGame} />;
+  return game ? <Game setup={game} onExit={() => setGame(null)} /> : <Lobby onStart={setGame} />;
 }
