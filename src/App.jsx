@@ -110,10 +110,14 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     startAction.onMessage = (setup) => onStart({ ...setup, network, localPeerId: network.selfId, online: true });
     network.room.onPeerJoin = () => {
       profile.send(mine);
-      setStatus("Peer connected. Syncing seats...");
+      setStatus("Peer connected. Ready when the table is.");
     };
-    network.room.onPeerLeave = (peerId) => setRoster((current) => current.filter((p) => p.peerId !== peerId));
-    setTimeout(() => profile.send(mine), 500);
+    network.room.onPeerLeave = (peerId) => {
+      setRoster((current) => current.filter((p) => p.peerId !== peerId));
+      setStatus("A player left the room.");
+    };
+    const announce = setInterval(() => profile.send(mine), 1500);
+    setTimeout(() => clearInterval(announce), 12000);
   };
   const updateProfile = (key, value) => {
     if (key === "name") setName(value); else setToken(value);
@@ -243,9 +247,17 @@ function Game({ setup, onExit }) {
   const activePlayers = players.filter((p) => !p.bankrupt);
   const winner = activePlayers.length === 1 ? activePlayers[0] : null;
   const receivingState = useRef(false);
+  const broadcasting = useRef(false);
+  const broadcastTimer = useRef(null);
   const [syncAction] = useState(() => setup.online ? setup.network.room.makeAction("game-state") : null);
   const addLog = (text) => setLog((items) => [text, ...items].slice(0, 30));
   const updatePlayer = (id, fn) => setPlayers((list) => list.map((p) => p.id === id ? fn(p) : p));
+  const markLocalMove = () => {
+    if (!setup.online) return;
+    broadcasting.current = true;
+    clearTimeout(broadcastTimer.current);
+    broadcastTimer.current = setTimeout(() => { broadcasting.current = false; }, 1800);
+  };
 
   useEffect(() => {
     if (!syncAction) return;
@@ -259,9 +271,9 @@ function Game({ setup, onExit }) {
   }, [syncAction]);
 
   useEffect(() => {
-    if (!syncAction || receivingState.current || !canAct) return;
+    if (!syncAction || receivingState.current || !broadcasting.current) return;
     syncAction.send({ players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, log });
-  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, log, canAct, syncAction]);
+  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, log, syncAction]);
 
   const settleSpace = (playerId, position, total, workingPlayers = players) => {
     const space = BOARD[position];
@@ -311,6 +323,7 @@ function Game({ setup, onExit }) {
 
   const rollDice = () => {
     if (rolling || rolled || winner) return;
+    markLocalMove();
     setRolling(true);
     setTimeout(() => {
       const next = [Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6)];
@@ -351,6 +364,7 @@ function Game({ setup, onExit }) {
   };
 
   const buyProperty = () => {
+    markLocalMove();
     const space = BOARD[pendingBuy];
     if (currentPlayer.money < space.price) return;
     updatePlayer(currentPlayer.id, (p) => ({ ...p, money: p.money - space.price, properties: [...p.properties, pendingBuy] }));
@@ -359,10 +373,12 @@ function Game({ setup, onExit }) {
     setPendingBuy(null);
   };
   const endTurn = () => {
+    markLocalMove();
     if (pendingBuy !== null) { setAuction(pendingBuy); setPendingBuy(null); return; }
     finishTurn();
   };
   const closeAuction = () => {
+    markLocalMove();
     setAuction(null);
     finishTurn();
   };
@@ -379,6 +395,7 @@ function Game({ setup, onExit }) {
     setTurn(next); setRolled(false); setDoublesCount(0); setSelected(null); setCard(null);
   };
   const winAuction = (bidderId, bid) => {
+    markLocalMove();
     const space = BOARD[auction];
     setPlayers((list) => list.map((p) => p.id === bidderId ? { ...p, money: p.money - bid, properties: [...p.properties, auction] } : p));
     setOwnership((all) => ({ ...all, [auction]: { ...all[auction], owner: bidderId } }));
@@ -387,6 +404,7 @@ function Game({ setup, onExit }) {
     setTimeout(finishTurn, 0);
   };
   const declareBankruptcy = () => {
+    markLocalMove();
     const id = currentPlayer.id;
     setPlayers((list) => list.map((p) => p.id === id ? { ...p, money: 0, properties: [], bankrupt: true } : p));
     setOwnership((all) => Object.fromEntries(Object.entries(all).map(([i, state]) => [i, state.owner === id ? { owner: null, houses: 0, mortgaged: false } : state])));
@@ -394,6 +412,7 @@ function Game({ setup, onExit }) {
     setTimeout(endTurn, 0);
   };
   const buyBuilding = (index) => {
+    markLocalMove();
     const space = BOARD[index];
     const group = BOARD.map((item, i) => ({ ...item, index: i })).filter((item) => item.group === space.group);
     if (!group.every((item) => currentPlayer.properties.includes(item.index))) {
@@ -405,6 +424,7 @@ function Game({ setup, onExit }) {
     addLog(`${currentPlayer.name} built ${ownership[index].houses === 4 ? "a hotel" : "a house"} on ${space.name}.`);
   };
   const sellBuilding = (index) => {
+    markLocalMove();
     const space = BOARD[index];
     if (ownership[index].houses <= 0) return;
     updatePlayer(currentPlayer.id, (p) => ({ ...p, money: p.money + Math.floor(space.houseCost / 2) }));
@@ -412,6 +432,7 @@ function Game({ setup, onExit }) {
     addLog(`${currentPlayer.name} sold a building on ${space.name} for ${money(Math.floor(space.houseCost / 2))}.`);
   };
   const mortgage = (index) => {
+    markLocalMove();
     const space = BOARD[index]; const state = ownership[index];
     const value = Math.floor(space.price / 2); const cost = Math.ceil(value * 1.1);
     if (state.mortgaged && currentPlayer.money < cost) return;
@@ -420,6 +441,7 @@ function Game({ setup, onExit }) {
     addLog(`${currentPlayer.name} ${state.mortgaged ? "unmortgaged" : "mortgaged"} ${space.name}.`);
   };
   const makeTrade = ({ targetId, offerMoney, requestMoney, offerProps, requestProps }) => {
+    markLocalMove();
     setPlayers((list) => list.map((p) => {
       if (p.id === currentPlayer.id) return { ...p, money: p.money - offerMoney + requestMoney, properties: [...p.properties.filter((i) => !offerProps.includes(i)), ...requestProps] };
       if (p.id === targetId) return { ...p, money: p.money + offerMoney - requestMoney, properties: [...p.properties.filter((i) => !requestProps.includes(i)), ...offerProps] };
@@ -432,16 +454,17 @@ function Game({ setup, onExit }) {
 
   const owned = useMemo(() => currentPlayer.properties.map((i) => ({ index: i, ...BOARD[i], ...ownership[i] })), [currentPlayer, ownership]);
   return <main className="game-shell">
+    <div className="table-props" aria-hidden="true"><span className="coffee-cup" /><span className="coaster">TT</span><span className="pencil" /><span className="money-stack">$</span><span className="snack-bowl">•••</span></div>
     <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}</span><strong>{setup.roomCode}</strong></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN</small><strong>{currentPlayer.name}</strong></div></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
     <section className="game-layout">
       <aside className="left-rail panel"><div className="panel-title"><span><Users /> Players</span><small>{activePlayers.length} left</small></div>
         <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} onTrade={setTradeTarget} />)}</div>
         <button className="trade-button" disabled={!canAct} onClick={() => setTradeTarget(true)}><Handshake /> Propose a trade</button>
       </aside>
-      <section className="board-stage"><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} />
+      <section className="board-stage"><div className="bank-tray" aria-hidden="true"><span>DEEDS</span><b /><b /><b /><i>$</i></div><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} />
         <div className="turn-controls">
           <div className="turn-copy"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
-          {currentPlayer.inJail && !rolled && <button className="secondary" disabled={!canAct || currentPlayer.money < 50} onClick={() => { charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
+          {currentPlayer.inJail && !rolled && <button className="secondary" disabled={!canAct || currentPlayer.money < 50} onClick={() => { markLocalMove(); charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
           {pendingBuy !== null && <button className="primary buy-button" disabled={!canAct || currentPlayer.money < BOARD[pendingBuy].price} onClick={buyProperty}>Buy · {money(BOARD[pendingBuy].price)}</button>}
           {!rolled ? <button className="roll-button" onClick={rollDice} disabled={!canAct || rolling}><DiceFive /> {canAct ? rolling ? "Rolling..." : "Roll dice" : `Waiting for ${currentPlayer.name}`}</button> : <button className="roll-button" onClick={endTurn} disabled={!canAct || players.some((p) => !p.bankrupt && p.money < 0)}>End turn <Check /></button>}
         </div>

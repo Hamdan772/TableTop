@@ -10,7 +10,7 @@ Play at [tabletop-monopoly-night.vercel.app](https://tabletop-monopoly-night.ver
 
 ## Play Modes
 
-- **Online room:** Create a four-character room code and share it with friends. Browsers discover each other through Trystero's public Nostr signaling network, then gameplay is sent directly between peers over encrypted WebRTC.
+- **Online room:** Create a four-character room code and share it with friends. Browsers discover each other through Trystero's public MQTT signaling network, then gameplay is sent directly between peers over encrypted WebRTC.
 - **Local pass-and-play:** Configure 2–8 players and share one screen.
 
 There is no TableTop backend, database, authentication, saved account data, or bots. Public signaling relays are used only for peer discovery; game state travels peer-to-peer.
@@ -53,7 +53,7 @@ No environment variables are required.
 
 ## Networking Notes
 
-TableTop uses [`trystero`](https://github.com/dmotz/trystero) for room discovery and WebRTC data channels. A signaling medium is technically required for arbitrary browsers to find each other from a short code. TableTop uses public Nostr relays instead of operating its own backend.
+TableTop uses [`trystero`](https://github.com/dmotz/trystero) for room discovery and WebRTC data channels. A signaling medium is technically required for arbitrary browsers to find each other from a short code. TableTop uses public MQTT signaling instead of operating its own backend.
 
 Peers should keep the room open while playing. Refreshing or closing the tab leaves the current game.
 

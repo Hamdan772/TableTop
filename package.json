@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@trystero-p2p/mqtt": "^0.25.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "trystero": "^0.25.1",
     "vite": "^6.1.0"
   }
 }

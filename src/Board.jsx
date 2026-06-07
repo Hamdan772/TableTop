@@ -34,10 +34,12 @@ export default function Board({ players, ownership, selected, onSelect, dice, ro
   return (
     <div className="board-wrap">
       <div className="board">
+        <div className="paper-crease crease-one" /><div className="paper-crease crease-two" />
         {BOARD.map((space, index) => (
           <Space key={`${space.name}-${index}`} {...{ space, index, ownership: ownership[index], players, selected: selected === index, onSelect }} />
         ))}
         <div className="board-center">
+          <div className="stardance-sticker">STARDANCE<br />GAME NIGHT</div>
           <div className="board-stamp">TABLETOP ORIGINAL</div>
           <h1>MONOPOLY</h1>
           <p>Room for big moves and bad deals.</p>
