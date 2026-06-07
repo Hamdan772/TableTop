@@ -4,6 +4,10 @@ TableTop is a premium digital board-game night experience. The first playable ga
 
 ![TableTop logo](public/assets/tabletop-logo.png)
 
+## Live App
+
+Play at [tabletop-monopoly-night.vercel.app](https://tabletop-monopoly-night.vercel.app).
+
 ## Play Modes
 
 - **Online room:** Create a four-character room code and share it with friends. Browsers discover each other through Trystero's public Nostr signaling network, then gameplay is sent directly between peers over encrypted WebRTC.
