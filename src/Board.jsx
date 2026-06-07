@@ -1,3 +1,4 @@
+import React from "react";
 import { BOARD, GROUP_COLORS } from "./game";
 
 const gridPosition = (index) => {
