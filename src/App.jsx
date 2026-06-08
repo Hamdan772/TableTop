@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Buildings, ChatCircleDots, Check, Copy, DiceFive, Handshake, House,
-  Money, Plus, SealCheck, Trash, Users, X,
+  GlobeHemisphereWest, Money, Plus, SealCheck, Trash, Users, X,
 } from "@phosphor-icons/react";
 import Board from "./Board";
+import Risk from "./Risk";
 import {
   BOARD, CHANCE, CHEST, TOKENS, calculateRent, createPlayers, initialOwnership, money,
 } from "./game";
@@ -12,7 +13,7 @@ import { connectToRoom } from "./network";
 
 const randomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 
-function Lobby({ onStart }) {
+function Lobby({ onStart, onStartRisk }) {
   const [mode, setMode] = useState("home");
   const [tableName, setTableName] = useState("Friday Game Night");
   const [players, setPlayers] = useState([{ name: "Player 1", token: TOKENS[0] }, { name: "Player 2", token: TOKENS[1] }]);
@@ -36,6 +37,7 @@ function Lobby({ onStart }) {
             <button className="secondary big" onClick={() => setMode("join")}><Users /> Join with code</button>
             <button className="secondary big" onClick={() => setMode("create")}><DiceFive /> Local game</button>
           </div>
+          <button className="risk-shelf-button" onClick={onStartRisk}><GlobeHemisphereWest /><span><small>NOW ON THE SHELF</small><strong>Play Risk locally</strong></span><b>NEW</b></button>
           <div className="friend-strip">
             <p><strong>No accounts or TableTop server.</strong> Room discovery, then encrypted peer-to-peer play.</p>
           </div>
@@ -489,5 +491,6 @@ function Game({ setup, onExit }) {
 export default function App() {
   const [game, setGame] = useState(null);
   const exitGame = () => { game?.network?.room.leave(); setGame(null); };
-  return game ? <Game setup={game} onExit={exitGame} /> : <Lobby onStart={setGame} />;
+  if (game?.type === "risk") return <Risk onExit={exitGame} />;
+  return game ? <Game setup={game} onExit={exitGame} /> : <Lobby onStart={setGame} onStartRisk={() => setGame({ type: "risk" })} />;
 }

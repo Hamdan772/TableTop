@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 420" role="img" aria-labelledby="title desc">
+  <title id="title">TableTop</title>
+  <desc id="desc">TableTop logo and name on a forest green banner.</desc>
+  <rect width="1600" height="420" fill="#17382b"/>
+  <path d="M0 90H1600M0 210H1600M0 330H1600" stroke="#fff" stroke-opacity=".035"/>
+  <path d="M180 0V420M420 0V420M660 0V420M900 0V420M1140 0V420M1380 0V420" stroke="#fff" stroke-opacity=".025"/>
+  <g transform="translate(360 70)">
+    <path d="M92 0 184 34v94c0 76-47 132-92 152C47 260 0 204 0 128V34Z" fill="#f6f1df" stroke="#10271e" stroke-width="10"/>
+    <path d="M92 20 163 47v80c0 57-33 104-71 126-38-22-71-69-71-126V47Z" fill="#df5149"/>
+    <path d="M31 74h122v89H31z" fill="#f6f1df" stroke="#10271e" stroke-width="8"/>
+    <path d="M31 74h122v25H31zM31 138h122v25H31z" fill="#f0c84b" stroke="#10271e" stroke-width="8"/>
+    <path d="M57 74v89M127 74v89" stroke="#10271e" stroke-width="8"/>
+    <circle cx="57" cy="119" r="8" fill="#3f8bd8"/>
+    <circle cx="127" cy="119" r="8" fill="#55a96a"/>
+    <path d="m73 187 19-17 19 17v31H73z" fill="#10271e"/>
+  </g>
+  <g fill="#f6f1df" transform="translate(590 122)">
+    <text x="0" y="95" font-family="Arial, Helvetica, sans-serif" font-size="128" font-weight="800" letter-spacing="-8">TableTop</text>
+    <text x="7" y="151" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" letter-spacing="10" opacity=".62">BOARD GAME NIGHT, ONLINE</text>
+  </g>
+  <path d="M594 304h590" stroke="#f0c84b" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="1212" cy="304" r="8" fill="#df5149"/>
+</svg>
