@@ -57,10 +57,20 @@ export const GROUP_COLORS = {
 
 export const CHANCE = [
   { text: "Advance to GO. Collect $200.", move: 0 },
+  { text: "Advance to Illinois Avenue.", move: 24 },
+  { text: "Advance to St. Charles Place.", move: 11 },
   { text: "Advance to Boardwalk.", move: 39 },
   { text: "Bank pays you dividend of $50.", money: 50 },
+  { text: "Go back three spaces.", moveBack: 3 },
   { text: "Speeding fine. Pay $15.", money: -15 },
   { text: "Go directly to Jail.", jail: true },
+  { text: "Pay school fees of $50.", money: -50 },
+  { text: "Your loan matures. Collect $150.", money: 150 },
+  { text: "You have won a crossword competition. Collect $100.", money: 100 },
+  { text: "Building repairs. Pay $25.", money: -25 },
+  { text: "Advance to Reading Railroad.", move: 5 },
+  { text: "Take a trip to Pennsylvania Railroad.", move: 15 },
+  { text: "Chairman of the board. Pay $50.", money: -50 },
   { text: "Your building loan matures. Collect $150.", money: 150 },
 ];
 
@@ -68,9 +78,19 @@ export const CHEST = [
   { text: "Advance to GO. Collect $200.", move: 0 },
   { text: "Bank error in your favor. Collect $200.", money: 200 },
   { text: "Doctor's fee. Pay $50.", money: -50 },
+  { text: "Pay hospital fees of $100.", money: -100 },
+  { text: "Pay school fees of $50.", money: -50 },
+  { text: "Income tax refund. Collect $20.", money: 20 },
+  { text: "Life insurance matures. Collect $100.", money: 100 },
   { text: "From sale of stock you get $50.", money: 50 },
   { text: "Go directly to Jail.", jail: true },
   { text: "Holiday fund matures. Receive $100.", money: 100 },
+  { text: "Receive consultancy fee. Collect $25.", money: 25 },
+  { text: "You inherit $100.", money: 100 },
+  { text: "Beauty contest prize. Collect $10.", money: 10 },
+  { text: "Street repairs. Pay $40.", money: -40 },
+  { text: "Collect $50 from the Bank.", money: 50 },
+  { text: "You are assessed $50.", money: -50 },
 ];
 
 export const createPlayers = (entries) => entries.map((entry, index) => ({
@@ -100,4 +120,4 @@ export function calculateRent(space, ownership, owner, diceTotal = 7) {
   return space.rent * (group === groupSize ? 2 : 1);
 }
 
-export const money = (value) => `$${Math.max(0, value).toLocaleString()}`;
+export const money = (value) => `${value < 0 ? "-" : ""}$${Math.abs(value).toLocaleString()}`;

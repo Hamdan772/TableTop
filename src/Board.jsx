@@ -30,9 +30,10 @@ function Space({ space, index, ownership, players, selected, onSelect }) {
   );
 }
 
-export default function Board({ players, ownership, selected, onSelect, dice, rolling }) {
+export default function Board({ players, ownership, selected, onSelect, dice, rolling, scale = 1 }) {
   return (
     <div className="board-wrap">
+      <div className="board-scale" style={{ "--board-scale": scale }}>
       <div className="board">
         <div className="paper-crease crease-one" /><div className="paper-crease crease-two" />
         {BOARD.map((space, index) => (
@@ -51,6 +52,7 @@ export default function Board({ players, ownership, selected, onSelect, dice, ro
             <span>CHANCE</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
