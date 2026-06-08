@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Buildings, ChatCircleDots, Check, Copy, DiceFive, Eye, Handshake, House,
-  Lightning, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Money, Plus, SealCheck, SpeakerHigh, Timer, Trash, Users, X,
+  Lightning, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Money, MusicNotes, Plus, SealCheck, SpeakerHigh, Timer, Trash, Users, X,
 } from "@phosphor-icons/react";
 import Board from "./Board";
 import {
@@ -97,7 +97,7 @@ function PublicLobby({ onBack, onJoin }) {
     <button className="drawer-close" onClick={onBack}><X /></button>
     <span className="eyebrow">Public tables</span><h2>Find a game night.</h2>
     <p className="public-lobby-intro">Open rooms appear here while their hosts are waiting. Games in progress can be joined as a spectator.</p>
-    <div className="public-table-list">{tables.length ? tables.map((table) => <article key={table.code}><div><strong>{table.name}</strong><span>{table.players} seated · {table.status}</span></div><button className="primary" onClick={() => onJoin(table.code)}>{table.status === "In progress" ? <Eye /> : <Users />} {table.status === "In progress" ? "Spectate" : "Join"}</button></article>) : <div className="public-empty"><MagnifyingGlass /><strong>No public tables yet</strong><span>Create one and it will appear here.</span></div>}</div>
+    <div className="public-table-list">{tables.length ? tables.map((table) => <article key={table.code}><div><strong>{table.name}</strong><span>{table.code} · {table.players} seated · {table.status}</span></div><button className="primary" onClick={() => onJoin(table.code)}>{table.status === "In progress" ? <Eye /> : <Users />} {table.status === "In progress" ? "Spectate" : "Join"}</button></article>) : <div className="public-empty"><MagnifyingGlass /><strong>No public tables yet</strong><span>Create one and it will appear here.</span></div>}</div>
     <p className="connection-status"><i /> {status}</p>
   </section></main>;
 }
@@ -135,8 +135,8 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     const profile = network.room.makeAction("profile");
     const rosterAction = network.room.makeAction("roster");
     const startAction = network.room.makeAction("start");
-    const directory = role === "host" ? connectToRoom(PUBLIC_DIRECTORY) : null;
-    const listingAction = directory?.room.makeAction("listing");
+    const directory = null;
+    const listingAction = null;
     const mine = { peerId: network.selfId, name, token, ready: role === "host" };
     profileRef.current = mine;
     const connected = { ...network, profile, rosterAction, startAction, directory, listingAction };
@@ -172,9 +172,6 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
       if (!connected.hasPeer && role === "guest") setStatus("No host found yet. Check the code and keep this window open.");
     }, 12000);
     connected.rosterCount = 1;
-    if (listingAction) connected.listingTimer = setInterval(() => {
-      if (publicRef.current) listingAction.send({ code: roomCode.toUpperCase(), name: `${profileRef.current.name}'s table`, players: connected.rosterCount, status: "Waiting", seenAt: Date.now() });
-    }, 2500);
   };
   const updateProfile = (key, value) => {
     if (key === "name") setName(value); else setToken(value);
@@ -196,6 +193,18 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     connection.profile.send(mine);
     setRoster((current) => current.map((player) => player.peerId === connection.selfId ? mine : player));
   };
+  const togglePublic = () => {
+    const nextPublic = !isPublic;
+    publicRef.current = nextPublic;
+    setIsPublic(nextPublic);
+    if (nextPublic && !connection.directory) {
+      connection.directory = connectToRoom(PUBLIC_DIRECTORY);
+      connection.listingAction = connection.directory.room.makeAction("listing");
+      connection.listingTimer = setInterval(() => {
+        if (publicRef.current) connection.listingAction.send({ code: code.toUpperCase(), name: `${profileRef.current.name}'s table`, players: connection.rosterCount, status: "Waiting", seenAt: Date.now() });
+      }, 2500);
+    }
+  };
   const startOnline = async () => {
     const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s online table`, hostPeerId: connection.selfId, publicRoom: isPublic };
     setStatus("Dealing the board to everyone...");
@@ -212,7 +221,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     <div className="online-profile"><label>Your name<input value={name} onChange={(e) => updateProfile("name", e.target.value)} /></label><label>Your token<select value={token} onChange={(e) => updateProfile("token", e.target.value)}>{TOKENS.map((item) => <option disabled={tokensUsed.includes(item)} key={item}>{item}</option>)}</select></label></div>
     {!connection ? <button className="primary big" disabled={code.length !== 4 || !name.trim()} onClick={() => join()}>Connect to room</button> : <>
       <button className="room-code online-code" onClick={() => navigator.clipboard?.writeText(code)}><span>SHARE ROOM CODE</span><strong>{code}</strong><Copy /></button>
-      {role === "host" && <button className={isPublic ? "visibility-toggle is-public" : "visibility-toggle"} onClick={() => { publicRef.current = !isPublic; setIsPublic(!isPublic); }}><Eye /><span><strong>{isPublic ? "Public table" : "Private table"}</strong><small>{isPublic ? "Visible in public tables" : "Only people with the code can join"}</small></span></button>}
+      {role === "host" && <button className={isPublic ? "visibility-toggle is-public" : "visibility-toggle"} onClick={togglePublic}><Eye /><span><strong>{isPublic ? "Public table" : "Private table"}</strong><small>{isPublic ? "Visible in public tables" : "Only people with the code can join"}</small></span></button>}
       <div className="online-roster">{roster.map((player) => <article className="seat" key={player.peerId}><div className="seat-avatar"><TokenPiece token={player.token} color="#9ca9a2" /></div><div><strong>{player.name}</strong><span>{player.peerId === connection.selfId ? "You" : "Connected peer"} · {player.token}</span></div><b className={player.ready ? "roster-ready is-ready" : "roster-ready"}>{player.ready ? "READY" : "WAITING"}</b></article>)}</div>
       {role === "guest" && <button className={ready ? "secondary big ready-toggle" : "primary big ready-toggle"} onClick={toggleReady}>{ready ? <Check /> : null}{ready ? "Ready" : "I'm ready"}</button>}
       {role === "host" && <button className="primary big" disabled={roster.length < 2 || roster.some((p) => !p.ready) || new Set(roster.map((p) => p.token)).size !== roster.length} onClick={startOnline}>Start online game</button>}
@@ -225,10 +234,10 @@ function Brand() {
   return <div className="brand"><img src={`${import.meta.env.BASE_URL}assets/tabletop-logo.png`} alt="" /><strong>TableTop</strong><small>GAME NIGHT</small></div>;
 }
 
-function PlayerCard({ player, active, onTrade, canTrade }) {
-  return <article className={`player-card ${active ? "active" : ""} ${player.bankrupt ? "bankrupt" : ""}`}>
+function PlayerCard({ player, active, onTrade, canTrade, offline }) {
+  return <article className={`player-card ${active ? "active" : ""} ${player.bankrupt ? "bankrupt" : ""} ${offline ? "offline" : ""}`}>
     <div className="player-avatar" style={{ "--player": player.color }}><TokenPiece token={player.token} color={player.color} /><i /></div>
-    <div className="player-meta"><strong>{player.name}</strong><span>{player.bankrupt ? "Bankrupt" : money(player.money)}</span></div>
+    <div className="player-meta"><strong>{player.name}</strong><span>{player.bankrupt ? "Bankrupt" : offline ? "Disconnected" : money(player.money)}</span></div>
     {!player.bankrupt && <button className="icon-button" disabled={!canTrade} onClick={() => onTrade(player.id)} title={`Trade with ${player.name}`}><Handshake /></button>}
   </article>;
 }
@@ -356,9 +365,12 @@ function Game({ setup, onExit }) {
   const [turnSeconds, setTurnSeconds] = useState(90);
   const [fastMode, setFastMode] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
-  const [boardZoom, setBoardZoom] = useState(1);
+  const [musicOn, setMusicOn] = useState(false);
+  const [boardZoom, setBoardZoom] = useState(() => window.innerWidth < 820 ? .55 : 1);
+  const [offlinePeers, setOfflinePeers] = useState([]);
   const currentPlayer = players[turn];
   const canAct = !setup.online || currentPlayer.peerId === setup.localPeerId;
+  const hostCanAdvanceOffline = setup.online && setup.localPeerId === setup.hostPeerId && offlinePeers.includes(currentPlayer.peerId);
   const activePlayers = players.filter((p) => !p.bankrupt);
   const winner = activePlayers.length === 1 ? activePlayers[0] : null;
   const receivingState = useRef(false);
@@ -375,6 +387,28 @@ function Game({ setup, onExit }) {
     clearTimeout(broadcastTimer.current);
     broadcastTimer.current = setTimeout(() => { broadcasting.current = false; }, 1800);
   };
+
+  useEffect(() => window.scrollTo(0, 0), []);
+
+  useEffect(() => {
+    if (!musicOn) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const notes = [130.81, 164.81, 196, 220];
+    const playNote = () => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine"; oscillator.frequency.value = notes[Math.floor(Math.random() * notes.length)];
+      gain.gain.setValueAtTime(.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.008, context.currentTime + .15);
+      gain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + 1.4);
+      oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 1.5);
+    };
+    playNote();
+    const musicTimer = setInterval(playNote, 1800);
+    return () => { clearInterval(musicTimer); context.close(); };
+  }, [musicOn]);
 
   useEffect(() => {
     if (!syncAction) return;
@@ -406,6 +440,7 @@ function Game({ setup, onExit }) {
   useEffect(() => {
     if (!setup.online || setup.localPeerId !== setup.hostPeerId) return;
     setup.network.room.onPeerJoin = (peerId) => {
+      setOfflinePeers((peers) => peers.filter((id) => id !== peerId));
       setup.network.startAction.send({ players: setup.players, roomCode: setup.roomCode, tableName: setup.tableName, hostPeerId: setup.hostPeerId, spectator: true }, { target: peerId });
       setTimeout(() => syncAction.send(stateRef.current, { target: peerId }), 700);
     };
@@ -415,6 +450,14 @@ function Game({ setup, onExit }) {
     }, 2500);
     return () => clearInterval(directoryTimer);
   }, [setup, syncAction]);
+
+  useEffect(() => {
+    if (!setup.online) return;
+    setup.network.room.onPeerLeave = (peerId) => {
+      setOfflinePeers((peers) => [...new Set([...peers, peerId])]);
+      addLog(`${players.find((player) => player.peerId === peerId)?.name || "A spectator"} disconnected.`);
+    };
+  }, [setup, players]);
 
   const sendMessage = (text) => {
     const clean = text.trim().slice(0, 120);
@@ -690,22 +733,22 @@ function Game({ setup, onExit }) {
     setTurnSeconds(90);
     const timer = setInterval(() => setTurnSeconds((seconds) => {
       if (seconds > 1) return seconds - 1;
-      if (canAct && !rolling && !winner) setTimeout(() => rolled ? endTurn() : rollDice(), 0);
+      if ((canAct || hostCanAdvanceOffline) && !rolling && !winner) setTimeout(() => rolled ? endTurn() : rollDice(), 0);
       return 90;
     }), 1000);
     return () => clearInterval(timer);
-  }, [turn, rolled, canAct, rolling, winner]);
+  }, [turn, rolled, canAct, hostCanAdvanceOffline, rolling, winner]);
 
   const owned = useMemo(() => currentPlayer.properties.map((i) => ({ index: i, ...BOARD[i], ...ownership[i] })), [currentPlayer, ownership]);
   return <main className="game-shell">
     <div className="table-props" aria-hidden="true"><span className="coffee-cup" /><span className="coaster">TT</span><span className="pencil" /><span className="money-stack">$</span><span className="snack-bowl">•••</span></div>
-    <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}{setup.spectator ? " · SPECTATING" : ""}</span><strong>{setup.roomCode}</strong></div><div className="game-tools"><button className={fastMode ? "active" : ""} onClick={() => setFastMode(!fastMode)} title="Fast animations"><Lightning /></button><button className={soundOn ? "active" : ""} onClick={() => setSoundOn(!soundOn)} title="Sound effects"><SpeakerHigh /></button></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN · {turnSeconds}s</small><strong>{currentPlayer.name}</strong></div><Timer /></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
+    <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}{setup.spectator ? " · SPECTATING" : ""}</span><strong>{setup.roomCode}</strong></div><div className="game-tools"><button className={fastMode ? "active" : ""} onClick={() => setFastMode(!fastMode)} title="Fast animations"><Lightning /></button><button className={soundOn ? "active" : ""} onClick={() => setSoundOn(!soundOn)} title="Sound effects"><SpeakerHigh /></button><button className={musicOn ? "active" : ""} onClick={() => setMusicOn(!musicOn)} title="Background music"><MusicNotes /></button></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN · {turnSeconds}s</small><strong>{currentPlayer.name}</strong></div><Timer /></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
     <section className="game-layout">
       <aside className="left-rail panel"><div className="panel-title"><span><Users /> Players</span><small>{activePlayers.length} left</small></div>
-        <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} canTrade={canAct && player.id !== currentPlayer.id} onTrade={setTradeTarget} />)}</div>
+        <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} offline={offlinePeers.includes(player.peerId)} canTrade={canAct && player.id !== currentPlayer.id} onTrade={setTradeTarget} />)}</div>
         <button className="trade-button" disabled={!canAct} onClick={() => setTradeTarget(true)}><Handshake /> Propose a trade</button>
       </aside>
-      <section className="board-stage"><div className="bank-tray" aria-hidden="true"><span>DEEDS</span><b /><b /><b /><i>$</i></div><div className="board-zoom-controls"><button onClick={() => setBoardZoom(Math.max(.75, boardZoom - .15))}><MagnifyingGlassMinus /></button><button onClick={() => setBoardZoom(1)}>{Math.round(boardZoom * 100)}%</button><button onClick={() => setBoardZoom(Math.min(1.75, boardZoom + .15))}><MagnifyingGlassPlus /></button></div><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} scale={boardZoom} />
+      <section className="board-stage"><div className="bank-tray" aria-hidden="true"><span>DEEDS</span><b /><b /><b /><i>$</i></div><div className="board-zoom-controls"><button onClick={() => setBoardZoom(Math.max(.45, boardZoom - .15))}><MagnifyingGlassMinus /></button><button onClick={() => setBoardZoom(window.innerWidth < 820 ? .55 : 1)}>{Math.round(boardZoom * 100)}%</button><button onClick={() => setBoardZoom(Math.min(1.75, boardZoom + .15))}><MagnifyingGlassPlus /></button></div><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling }} scale={boardZoom} />
         <div className="turn-controls">
           <div className="turn-copy"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
           {currentPlayer.inJail && !rolled && <button className="secondary" disabled={!canAct || currentPlayer.money < 50} onClick={() => { markLocalMove(); charge(currentPlayer.id, 50, `${currentPlayer.name} paid $50 to leave Jail.`); updatePlayer(currentPlayer.id, (p) => ({ ...p, inJail: false })); }}>Pay $50</button>}
