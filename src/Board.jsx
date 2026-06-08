@@ -30,7 +30,7 @@ function Space({ space, index, ownership, players, selected, onSelect }) {
   );
 }
 
-export default function Board({ players, ownership, selected, onSelect, dice, rolling, scale = 1 }) {
+export default function Board({ players, ownership, selected, onSelect, dice, rolling, fastMode, scale = 1 }) {
   return (
     <div className="board-wrap">
       <div className="board-scale" style={{ "--board-scale": scale }}>
@@ -44,7 +44,7 @@ export default function Board({ players, ownership, selected, onSelect, dice, ro
           <div className="board-stamp">TABLETOP ORIGINAL</div>
           <h1>MONOPOLY</h1>
           <p>Room for big moves and bad deals.</p>
-          <div className={`dice-pair ${rolling ? "rolling" : ""}`}>
+          <div className={`dice-pair ${rolling ? "rolling" : ""} ${fastMode ? "fast" : ""}`}>
             {dice.map((die, index) => <Dice3D value={die} rolling={rolling} second={index === 1} key={index} />)}
           </div>
           <div className="center-decks">
