@@ -1,28 +1,40 @@
-<p align="center">
-  <img src="public/assets/tabletop-stardance-banner.svg" alt="TableTop — board game night, online" width="100%">
-</p>
+# TableTop
 
-<p align="center"><strong>Pull up a chair. TableTop is a cozy, fully playable online Monopoly table built for Hack Club Stardance.</strong></p>
+**A cozy online Monopoly table that feels like game night with friends, without accounts, bots, or a game server.**
 
-<p align="center"><a href="https://tabletop-monopoly-night.vercel.app"><strong>Play TableTop</strong></a></p>
+![A live TableTop Monopoly game with players, 3D dice, property management, and table chat](public/assets/tabletop-gameplay.png)
 
-## Around the table
+### [Play TableTop live](https://tabletop-monopoly-night.vercel.app)
 
-- Play online through room codes or discover public tables, with no accounts or game server
-- Buy, auction, trade, mortgage, build, go to jail, and play through bankruptcy to a winner
-- Chat, react, spectate, inspect deeds, zoom the board, and roll physical 3D dice
-- Bring 2–8 players online or use local pass-and-play
+Open the link, create an online room, and share its four-character code. You can also make the room public so other players can find it from **Public tables**.
 
-## Run
+## Features
+
+- Play complete Monopoly games with 2–8 players online or through local pass-and-play
+- Discover public tables, join private rooms by code, or spectate games in progress
+- Buy and auction properties, collect rent, trade, mortgage, build, go to jail, and play to bankruptcy
+- Roll animated 3D dice on a physical-style board with tokens, deeds, houses, and hotels
+- Chat, send reactions, inspect the event log, and manage your property portfolio
+
+## Run locally
+
+Requires Node.js 20 or newer.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Built with React, Vite, Trystero signaling, WebRTC, and native CSS. Public tables are live peer announcements, so they appear only while a host has the room open.
+## How it works
+
+TableTop has no application backend. Trystero uses MQTT signaling to connect browsers, then game state, chat, room rosters, and public-table announcements travel directly between players over WebRTC. Hosts remain authoritative for room membership and continuously acknowledge roster state so a missed peer event cannot leave someone stuck outside the table.
+
+The game itself is built in React with native CSS. Monopoly rules and synchronized state live entirely in the browser.
+
+I hate backends btw
 
 ## Credits
 
-**Game logic and direction:** [Hamdan Nishad](https://github.com/Hamdan772)<br>
-**UI and visual assets:** AI-assisted with OpenAI Codex under Hamdan's direction.
+- **Game logic and direction:** [Hamdan Nishad](https://github.com/Hamdan772)
+- **UI and visual assets:** AI did it (OpenAI Codex)
+- Built for the Hack Club Stardance event

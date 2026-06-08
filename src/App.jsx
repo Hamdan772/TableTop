@@ -129,6 +129,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
   const [status, setStatus] = useState(role === "host" ? "Opening room..." : "Enter the room code to connect.");
   const connectionRef = useRef(null);
   const profileRef = useRef(null);
+  const rosterRef = useRef([]);
   const publicRef = useRef(false);
   const handedOff = useRef(false);
 
@@ -150,40 +151,79 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     const network = connectToRoom(roomCode);
     const profile = network.room.makeAction("profile");
     const rosterAction = network.room.makeAction("roster");
+    const joinAction = network.room.makeAction("join-request");
     const startAction = network.room.makeAction("start");
     const directory = null;
     const listingAction = null;
     const mine = { peerId: network.selfId, name, token, ready: role === "host" };
     profileRef.current = mine;
-    const connected = { ...network, profile, rosterAction, startAction, directory, listingAction };
+    const connected = { ...network, profile, rosterAction, joinAction, startAction, directory, listingAction };
     connectionRef.current = connected;
+    rosterRef.current = [mine];
     setConnection(connected);
     setRoster([mine]);
     setStatus(role === "host" ? "Room open. Waiting for players..." : "Looking for the host...");
-    profile.onMessage = (entry) => {
+    const addToRoster = (entry) => {
       if (role !== "host") return;
       setRoster((current) => {
-        const next = [...current.filter((p) => p.peerId !== entry.peerId), entry].slice(0, 8);
+        const otherPlayers = current.filter((player) => player.peerId !== entry.peerId);
+        const usedTokens = otherPlayers.map((player) => player.token);
+        const assignedToken = usedTokens.includes(entry.token)
+          ? TOKENS.find((item) => !usedTokens.includes(item))
+          : entry.token;
+        const next = [...otherPlayers, { ...entry, token: assignedToken }].slice(0, 8);
+        rosterRef.current = next;
         connected.rosterCount = next.length;
         rosterAction.send(next);
+        connected.announceListing?.();
         return next;
       });
     };
-    rosterAction.onMessage = (next) => setRoster(next);
+    profile.onMessage = addToRoster;
+    joinAction.onMessage = (entry, peerId) => {
+      if (role !== "host") return;
+      addToRoster(entry);
+      rosterAction.send(rosterRef.current, { target: peerId });
+    };
+    rosterAction.onMessage = (next) => {
+      const mine = next.find((player) => player.peerId === network.selfId);
+      if (mine && mine.token !== profileRef.current.token) {
+        profileRef.current = mine;
+        setToken(mine.token);
+      }
+      rosterRef.current = next;
+      setRoster(next);
+      setStatus("You are seated. Ready up when everyone arrives.");
+    };
     startAction.onMessage = (setup) => {
       handedOff.current = true;
       onStart({ ...setup, network: connected, localPeerId: network.selfId, online: true });
     };
-    network.room.onPeerJoin = () => {
+    network.room.onPeerJoin = (peerId) => {
       connected.hasPeer = true;
       profile.send(profileRef.current);
+      if (role === "guest") joinAction.send(profileRef.current, { target: peerId });
+      if (role === "host") rosterAction.send(rosterRef.current, { target: peerId });
       setStatus("Peer connected. Ready when the table is.");
     };
     network.room.onPeerLeave = (peerId) => {
-      setRoster((current) => current.filter((p) => p.peerId !== peerId));
+      setRoster((current) => {
+        const next = current.filter((p) => p.peerId !== peerId);
+        rosterRef.current = next;
+        connected.rosterCount = next.length;
+        if (role === "host") {
+          rosterAction.send(next);
+          connected.announceListing?.();
+        }
+        return next;
+      });
       setStatus("A player left the room.");
     };
-    connected.announceTimer = setInterval(() => profile.send(profileRef.current), 2500);
+    connected.announceTimer = setInterval(() => {
+      profile.send(profileRef.current);
+      if (role === "guest") joinAction.send(profileRef.current);
+      if (role === "host") rosterAction.send(rosterRef.current);
+    }, 2500);
     connected.connectionTimer = setTimeout(() => {
       if (!connected.hasPeer && role === "guest") setStatus("No host found yet. Check the code and keep this window open.");
     }, 12000);
@@ -197,6 +237,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     connection.profile.send(mine);
     setRoster((current) => {
       const next = current.map((p) => p.peerId === connection.selfId ? mine : p);
+      rosterRef.current = next;
       if (role === "host") connection.rosterAction.send(next);
       return next;
     });
@@ -207,7 +248,11 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     const mine = { ...profileRef.current, ready: nextReady };
     profileRef.current = mine;
     connection.profile.send(mine);
-    setRoster((current) => current.map((player) => player.peerId === connection.selfId ? mine : player));
+    setRoster((current) => {
+      const next = current.map((player) => player.peerId === connection.selfId ? mine : player);
+      rosterRef.current = next;
+      return next;
+    });
   };
   const togglePublic = () => {
     const nextPublic = !isPublic;
