@@ -12,3 +12,10 @@ export function connectToRoom(code) {
 }
 
 export const PUBLIC_DIRECTORY = "tabletop-public-directory-v1";
+
+let publicDirectory;
+
+export function connectToPublicDirectory() {
+  if (!publicDirectory) publicDirectory = connectToRoom(PUBLIC_DIRECTORY);
+  return publicDirectory;
+}

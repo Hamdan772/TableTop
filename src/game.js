@@ -64,6 +64,7 @@ export const CHANCE = [
   { text: "Go back three spaces.", moveBack: 3 },
   { text: "Speeding fine. Pay $15.", money: -15 },
   { text: "Go directly to Jail.", jail: true },
+  { text: "Get Out of Jail Free. Keep this card until needed or traded.", getOutOfJail: true },
   { text: "Pay school fees of $50.", money: -50 },
   { text: "Your loan matures. Collect $150.", money: 150 },
   { text: "You have won a crossword competition. Collect $100.", money: 100 },
@@ -71,7 +72,6 @@ export const CHANCE = [
   { text: "Advance to Reading Railroad.", move: 5 },
   { text: "Take a trip to Pennsylvania Railroad.", move: 15 },
   { text: "Chairman of the board. Pay $50.", money: -50 },
-  { text: "Your building loan matures. Collect $150.", money: 150 },
 ];
 
 export const CHEST = [
@@ -84,20 +84,20 @@ export const CHEST = [
   { text: "Life insurance matures. Collect $100.", money: 100 },
   { text: "From sale of stock you get $50.", money: 50 },
   { text: "Go directly to Jail.", jail: true },
+  { text: "Get Out of Jail Free. Keep this card until needed or traded.", getOutOfJail: true },
   { text: "Holiday fund matures. Receive $100.", money: 100 },
   { text: "Receive consultancy fee. Collect $25.", money: 25 },
   { text: "You inherit $100.", money: 100 },
   { text: "Beauty contest prize. Collect $10.", money: 10 },
   { text: "Street repairs. Pay $40.", money: -40 },
   { text: "Collect $50 from the Bank.", money: 50 },
-  { text: "You are assessed $50.", money: -50 },
 ];
 
 export const createPlayers = (entries) => entries.map((entry, index) => ({
   id: `p${index + 1}`, name: typeof entry === "string" ? entry : entry.name, color: COLORS[index],
   token: typeof entry === "string" ? TOKENS[index] : entry.token,
   peerId: typeof entry === "string" ? null : entry.peerId || null,
-  money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, bankrupt: false, ready: index === 0,
+  money: 1500, position: 0, properties: [], jailCards: [], inJail: false, jailTurns: 0, bankrupt: false, ready: index === 0,
 }));
 
 export const initialOwnership = () => Object.fromEntries(
