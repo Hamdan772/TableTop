@@ -10,12 +10,3 @@ export function connectToRoom(code) {
   const room = joinRoom(config, code.toLowerCase());
   return { room, selfId, code: code.toUpperCase() };
 }
-
-export const PUBLIC_DIRECTORY = "tabletop-public-directory-v1";
-
-let publicDirectory;
-
-export function connectToPublicDirectory() {
-  if (!publicDirectory) publicDirectory = connectToRoom(PUBLIC_DIRECTORY);
-  return publicDirectory;
-}

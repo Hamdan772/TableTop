@@ -19,6 +19,11 @@ test("Chance and Community Chest each contain one held jail card", () => {
   assert.equal(CHEST.length, 16);
   assert.equal(CHANCE.filter((card) => card.getOutOfJail).length, 1);
   assert.equal(CHEST.filter((card) => card.getOutOfJail).length, 1);
+  assert.equal(CHANCE.filter((card) => card.nearest === "railroad").length, 2);
+  assert.equal(CHANCE.filter((card) => card.nearest === "utility").length, 1);
+  assert.deepEqual(CHANCE.find((card) => card.repairs)?.repairs, { house: 25, hotel: 100 });
+  assert.equal(CHEST.filter((card) => card.collectEach).length, 2);
+  assert.deepEqual(CHEST.find((card) => card.repairs)?.repairs, { house: 40, hotel: 115 });
 });
 
 test("rent follows monopoly, railroad, utility, and mortgage rules", () => {

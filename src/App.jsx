@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Buildings, ChatCircleDots, Check, Copy, DiceFive, Eye, Handshake, House,
-  Lightning, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Money, MusicNotes, Plus, SealCheck, SpeakerHigh, Timer, Trash, Users, X,
+  Buildings, Check, Copy, DiceFive, Handshake, House, Lightning,
+  MagnifyingGlassMinus, MagnifyingGlassPlus, Money, MusicNotes, Plus, SealCheck, SpeakerHigh, Timer, Users, X,
 } from "@phosphor-icons/react";
 import Board from "./Board";
 import {
   BOARD, CHANCE, CHEST, TOKENS, calculateRent, createPlayers, initialOwnership, money,
 } from "./game";
 import { TokenPiece } from "./Pieces";
-import { connectToPublicDirectory, connectToRoom } from "./network";
+import { connectToRoom } from "./network";
 
 const randomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 const shuffle = (items) => {
@@ -23,15 +23,7 @@ const shuffle = (items) => {
 function Lobby({ onStart }) {
   const [mode, setMode] = useState("home");
   const [joinCode, setJoinCode] = useState("");
-  const [autoJoin, setAutoJoin] = useState(false);
-  const [tableName, setTableName] = useState("Friday Game Night");
-  const [players, setPlayers] = useState([{ name: "Player 1", token: TOKENS[0] }, { name: "Player 2", token: TOKENS[1] }]);
   const [roomCode] = useState(randomCode());
-
-  const updateSeat = (index, key, value) => setPlayers((list) => list.map((player, i) => i === index ? { ...player, [key]: value } : player));
-  const addPlayer = () => setPlayers((list) => list.length < 8 ? [...list, { name: `Player ${list.length + 1}`, token: TOKENS.find((token) => !list.some((p) => p.token === token)) }] : list);
-  const removePlayer = (index) => setPlayers((list) => list.length > 2 ? list.filter((_, i) => i !== index) : list);
-  const canStart = players.length >= 2 && players.every((p) => p.name.trim()) && new Set(players.map((p) => p.token)).size === players.length;
 
   if (mode === "home") return (
     <main className="welcome">
@@ -40,122 +32,49 @@ function Lobby({ onStart }) {
         <div className="welcome-copy">
           <span className="eyebrow">Tonight's table is open</span>
           <h1>Board game night,<br /><em>minus the cleanup.</em></h1>
-          <p>Classic games, cozy rooms, and just enough friendly chaos to keep the group chat alive.</p>
+          <p>Create a private room, share the code, and play a complete peer-to-peer Monopoly game with friends.</p>
           <div className="welcome-actions">
             <button className="primary big" onClick={() => setMode("online")}><Plus /> Create online room</button>
             <button className="secondary big" onClick={() => setMode("join")}><Users /> Join with code</button>
-            <button className="secondary big" onClick={() => setMode("browse")}><MagnifyingGlass /> Public tables</button>
-            <button className="secondary big" onClick={() => setMode("create")}><DiceFive /> Local game</button>
           </div>
           <div className="friend-strip">
-            <p><strong>No accounts or TableTop server.</strong> Room discovery, then encrypted peer-to-peer play.</p>
+            <p><strong>No accounts or TableTop server.</strong> Private room codes and encrypted peer-to-peer play.</p>
           </div>
         </div>
         <div className="table-preview">
           <div className="preview-board"><b>MONOPOLY</b><span>Game night starts here</span></div>
           <span className="preview-piece p1"><TokenPiece token="Top Hat" color="#ff6b6b" /></span><span className="preview-piece p2"><TokenPiece token="Race Car" color="#4dabf7" /></span>
           <div className="preview-die d1">5</div><div className="preview-die d2">2</div>
-          <div className="voice-bubble"><ChatCircleDots /> Pass the dice, not a login.</div>
+          <div className="voice-bubble"><DiceFive /> Pass the dice, not a login.</div>
         </div>
       </section>
-      <footer className="welcome-footer"><span>TableTop</span><span>Online rooms and local pass-and-play.</span></footer>
+      <footer className="welcome-footer"><span>TableTop</span><span>Private peer-to-peer Monopoly rooms.</span></footer>
     </main>
   );
 
-  if (mode === "browse") return <PublicLobby onBack={() => setMode("home")} onJoin={(code) => { setJoinCode(code); setAutoJoin(true); setMode("join"); }} />;
-  if (mode === "online" || mode === "join") return <OnlineLobby role={mode === "online" ? "host" : "guest"} initialCode={mode === "online" ? roomCode : joinCode} autoJoin={autoJoin} onBack={() => { setAutoJoin(false); setMode("home"); }} onStart={onStart} />;
-
-  return (
-    <main className="lobby">
-      <nav><Brand /><button className="secondary" onClick={() => setMode("home")}><X /> Leave room</button></nav>
-      <section className="lobby-card">
-        <div className="lobby-head">
-          <div><span className="eyebrow">Local pass-and-play</span><h1>Choose your pieces.</h1><p>Name every player and pick a unique token for one-screen play.</p></div>
-          <div className="table-details"><label>Table name<input value={tableName} onChange={(e) => setTableName(e.target.value)} /></label><button className="room-code" onClick={() => navigator.clipboard?.writeText(roomCode)}><span>GAME ID</span><strong>{roomCode}</strong><Copy /></button></div>
-        </div>
-        <div className="seats setup-seats">
-          {players.map((player, index) => <article className="seat setup-seat" key={index}>
-            <div className="seat-avatar" style={{ "--player": ["#ff6b6b", "#4dabf7", "#ffd43b", "#69db7c", "#da77f2", "#ffa94d", "#38d9a9", "#f06595"][index] }}><TokenPiece token={player.token} color="currentColor" /></div>
-            <input aria-label={`Player ${index + 1} name`} value={player.name} onChange={(e) => updateSeat(index, "name", e.target.value)} />
-            <select aria-label={`Player ${index + 1} token`} value={player.token} onChange={(e) => updateSeat(index, "token", e.target.value)}>{TOKENS.map((token) => <option disabled={players.some((p, i) => i !== index && p.token === token)} key={token}>{token}</option>)}</select>
-            <button className="icon-button" disabled={players.length <= 2} onClick={() => removePlayer(index)} title="Remove player"><Trash /></button>
-          </article>)}
-          {players.length < 8 && <button className="seat add-seat" onClick={addPlayer}><div className="seat-avatar"><Plus /></div><div><strong>Add player</strong><span>{8 - players.length} seats remaining</span></div></button>}
-        </div>
-        <div className="lobby-bottom"><p><Users /> {players.length} players · {tableName || "Untitled table"}</p><button className="primary big" disabled={!canStart} onClick={() => onStart({ players: createPlayers(players), roomCode, tableName })}>Start game <DiceFive /></button></div>
-      </section>
-    </main>
-  );
+  return <OnlineLobby role={mode === "online" ? "host" : "guest"} initialCode={mode === "online" ? roomCode : joinCode} onBack={() => setMode("home")} onStart={onStart} />;
 }
 
-function PublicLobby({ onBack, onJoin }) {
-  const [tables, setTables] = useState([]);
-  const [status, setStatus] = useState("Looking for open tables...");
-  const [directoryAttempt, setDirectoryAttempt] = useState(0);
-  const lastListing = useRef(Date.now());
-  useEffect(() => {
-    if (directoryAttempt) setStatus("Refreshing the public table list...");
-    const directory = connectToPublicDirectory();
-    const listings = directory.room.makeAction("listing");
-    const discover = directory.room.makeAction("discover");
-    const unlist = directory.room.makeAction("unlist");
-    listings.onMessage = (listing) => {
-      lastListing.current = Date.now();
-      setTables((current) => [listing, ...current.filter((table) => table.code !== listing.code)].slice(0, 12));
-      setStatus("Live tables found. Pick a seat.");
-    };
-    unlist.onMessage = ({ code }) => setTables((current) => current.filter((table) => table.code !== code));
-    const requestListings = () => discover.send({ requestedAt: Date.now() });
-    directory.room.onPeerJoin = requestListings;
-    const discoveryTimer = setInterval(requestListings, 2500);
-    requestListings();
-    const prune = setInterval(() => setTables((current) => current.filter((table) => Date.now() - table.seenAt < 10000)), 3000);
-    const reconnect = setTimeout(() => {
-      if (Date.now() - lastListing.current > 6000) setDirectoryAttempt((attempt) => attempt + 1);
-    }, 6500);
-    return () => {
-      clearInterval(discoveryTimer);
-      clearInterval(prune);
-      clearTimeout(reconnect);
-      listings.onMessage = () => {};
-      unlist.onMessage = () => {};
-      directory.room.onPeerJoin = () => {};
-    };
-  }, [directoryAttempt]);
-  return <main className="join-screen"><Brand /><section className="online-room-card public-lobby-card">
-    <button className="drawer-close" onClick={onBack}><X /></button>
-    <span className="eyebrow">Public tables</span><h2>Find a game night.</h2>
-    <p className="public-lobby-intro">Open rooms appear here while their hosts are waiting. Games in progress can be joined as a spectator.</p>
-    <div className="public-table-list">{tables.length ? tables.map((table) => <article key={table.code}><div><strong>{table.name}</strong><span>{table.code} · {table.players} seated · {table.status}</span></div><button className="primary" disabled={table.status === "Full"} onClick={() => onJoin(table.code)}>{table.status === "In progress" ? <Eye /> : <Users />} {table.status === "In progress" ? "Spectate" : table.status === "Full" ? "Full" : "Join"}</button></article>) : <div className="public-empty"><MagnifyingGlass /><strong>No public tables yet</strong><span>Create one and it will appear here.</span></div>}</div>
-    <p className="connection-status"><i /> {status}</p>
-  </section></main>;
-}
-
-function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
+function OnlineLobby({ role, initialCode, onBack, onStart }) {
   const [name, setName] = useState(role === "host" ? "Host" : "Player");
   const [token, setToken] = useState(role === "host" ? TOKENS[0] : TOKENS[1]);
   const [code, setCode] = useState(initialCode);
   const [connection, setConnection] = useState(null);
   const [roster, setRoster] = useState([]);
   const [ready, setReady] = useState(role === "host");
-  const [isPublic, setIsPublic] = useState(false);
   const [status, setStatus] = useState(role === "host" ? "Opening room..." : "Enter the room code to connect.");
   const connectionRef = useRef(null);
   const profileRef = useRef(null);
   const rosterRef = useRef([]);
-  const publicRef = useRef(false);
   const handedOff = useRef(false);
 
   useEffect(() => {
-    if (role === "host" || autoJoin) join(initialCode);
+    if (role === "host") join(initialCode);
     return () => {
       clearInterval(connectionRef.current?.announceTimer);
-      clearInterval(connectionRef.current?.listingTimer);
       clearTimeout(connectionRef.current?.connectionTimer);
       if (!handedOff.current) {
         connectionRef.current?.room.leave();
-        if (connectionRef.current?.discoveryAction) connectionRef.current.discoveryAction.onMessage = () => {};
-        if (connectionRef.current?.directory) connectionRef.current.directory.room.onPeerJoin = () => {};
       }
     };
   }, []);
@@ -167,11 +86,9 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
     const rosterAction = network.room.makeAction("roster");
     const joinAction = network.room.makeAction("join-request");
     const startAction = network.room.makeAction("start");
-    const directory = null;
-    const listingAction = null;
     const mine = { peerId: network.selfId, name, token, ready: role === "host" };
     profileRef.current = mine;
-    const connected = { ...network, profile, rosterAction, joinAction, startAction, directory, listingAction };
+    const connected = { ...network, profile, rosterAction, joinAction, startAction };
     connectionRef.current = connected;
     rosterRef.current = [mine];
     setConnection(connected);
@@ -193,7 +110,6 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
         rosterRef.current = next;
         connected.rosterCount = next.length;
         rosterAction.send(next);
-        connected.announceListing?.();
         return next;
       });
     };
@@ -231,7 +147,6 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
         connected.rosterCount = next.length;
         if (role === "host") {
           rosterAction.send(next);
-          connected.announceListing?.();
         }
         return next;
       });
@@ -272,35 +187,8 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
       return next;
     });
   };
-  const togglePublic = () => {
-    const nextPublic = !isPublic;
-    publicRef.current = nextPublic;
-    setIsPublic(nextPublic);
-    if (nextPublic && !connection.directory) {
-      connection.directory = connectToPublicDirectory();
-      connection.listingAction = connection.directory.room.makeAction("listing");
-      connection.discoveryAction = connection.directory.room.makeAction("discover");
-      connection.unlistAction = connection.directory.room.makeAction("unlist");
-      connection.announceListing = () => {
-        if (!publicRef.current) return;
-        connection.listingAction.send({
-          code: code.toUpperCase(),
-          name: `${profileRef.current.name}'s table`,
-          players: connection.rosterCount,
-          status: connection.rosterCount >= 8 ? "Full" : "Waiting",
-          seenAt: Date.now(),
-        });
-      };
-      connection.discoveryAction.onMessage = connection.announceListing;
-      connection.directory.room.onPeerJoin = connection.announceListing;
-      connection.listingTimer = setInterval(connection.announceListing, 2500);
-      connection.announceListing();
-    } else if (!nextPublic && connection.directory) {
-      connection.unlistAction?.send({ code: code.toUpperCase() });
-    }
-  };
   const startOnline = async () => {
-    const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s online table`, hostPeerId: connection.selfId, publicRoom: isPublic };
+    const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s private table`, hostPeerId: connection.selfId };
     setStatus("Dealing the board to everyone...");
     await connection.startAction.send(setup);
     handedOff.current = true;
@@ -308,9 +196,6 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
   };
   const tokensUsed = roster.filter((p) => p.peerId !== connection?.selfId).map((p) => p.token);
   const leaveRoom = () => {
-    if (role === "host" && publicRef.current) connection?.unlistAction?.send({ code: code.toUpperCase() });
-    if (connection?.discoveryAction) connection.discoveryAction.onMessage = () => {};
-    if (connection?.directory) connection.directory.room.onPeerJoin = () => {};
     connection?.room.leave();
     onBack();
   };
@@ -321,7 +206,6 @@ function OnlineLobby({ role, initialCode, autoJoin, onBack, onStart }) {
     <div className="online-profile"><label>Your name<input value={name} onChange={(e) => updateProfile("name", e.target.value)} /></label><label>Your token<select value={token} onChange={(e) => updateProfile("token", e.target.value)}>{TOKENS.map((item) => <option disabled={tokensUsed.includes(item)} key={item}>{item}</option>)}</select></label></div>
     {!connection ? <button className="primary big" disabled={code.length !== 4 || !name.trim()} onClick={() => join()}>Connect to room</button> : <>
       <button className="room-code online-code" onClick={() => navigator.clipboard?.writeText(code)}><span>SHARE ROOM CODE</span><strong>{code}</strong><Copy /></button>
-      {role === "host" && <button className={isPublic ? "visibility-toggle is-public" : "visibility-toggle"} onClick={togglePublic}><Eye /><span><strong>{isPublic ? "Public table" : "Private table"}</strong><small>{isPublic ? "Visible in public tables" : "Only people with the code can join"}</small></span></button>}
       <div className="online-roster">{roster.map((player) => <article className="seat" key={player.peerId}><div className="seat-avatar"><TokenPiece token={player.token} color="#9ca9a2" /></div><div><strong>{player.name}</strong><span>{player.peerId === connection.selfId ? "You" : "Connected peer"} · {player.token}</span></div><b className={player.ready ? "roster-ready is-ready" : "roster-ready"}>{player.ready ? "READY" : "WAITING"}</b></article>)}</div>
       {role === "guest" && <button className={ready ? "secondary big ready-toggle" : "primary big ready-toggle"} onClick={toggleReady}>{ready ? <Check /> : null}{ready ? "Ready" : "I'm ready"}</button>}
       {role === "host" && <button className="primary big" disabled={roster.length < 2 || roster.some((p) => !p.ready) || new Set(roster.map((p) => p.token)).size !== roster.length} onClick={startOnline}>Start online game</button>}
@@ -412,15 +296,9 @@ function TradeOfferModal({ offer, players, onResolve, canResolve }) {
   </section></div>;
 }
 
-function SocialPanel({ log, messages, onSend }) {
-  const [text, setText] = useState("");
-  const submit = (value = text) => { onSend(value); setText(""); };
-  return <section className="panel event-log social-panel"><div className="panel-title"><span><ChatCircleDots /> Table talk</span><i /></div>
-    <div className="social-scroll"><div className="log-list">{log.slice(0, 8).map((item, i) => <p key={`${item}-${i}`}><span>{i === 0 ? "NOW" : `${i + 1}`}</span>{item}</p>)}</div>
-      <div className="chat-list">{messages.map((message) => <p key={message.id}><strong>{message.author}</strong><span>{message.text}</span></p>)}</div>
-    </div>
-    <div className="quick-reactions">{["👏", "😮", "😂", "🤝"].map((reaction) => <button key={reaction} onClick={() => submit(reaction)}>{reaction}</button>)}</div>
-    <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); submit(); }}><input aria-label="Table chat message" placeholder="Say something..." value={text} onChange={(event) => setText(event.target.value)} /><button disabled={!text.trim()}><ChatCircleDots /></button></form>
+function EventLog({ log }) {
+  return <section className="panel event-log"><div className="panel-title"><span>Game history</span><i /></div>
+    <div className="social-scroll"><div className="log-list">{log.slice(0, 30).map((item, i) => <p key={`${item}-${i}`}><span>{i === 0 ? "NOW" : `${i + 1}`}</span>{item}</p>)}</div></div>
   </section>;
 }
 
@@ -461,13 +339,13 @@ function Game({ setup, onExit }) {
   const [pendingTrade, setPendingTrade] = useState(null);
   const [auction, setAuction] = useState(null);
   const [auctionQueue, setAuctionQueue] = useState([]);
+  const [auctionAdvancesTurn, setAuctionAdvancesTurn] = useState(true);
   const [debtTo, setDebtTo] = useState(null);
   const [chanceDeck, setChanceDeck] = useState(() => shuffle(CHANCE));
   const [chestDeck, setChestDeck] = useState(() => shuffle(CHEST));
   const [bankHouses, setBankHouses] = useState(32);
   const [bankHotels, setBankHotels] = useState(12);
   const [log, setLog] = useState([`The table is set. ${setup.players[0].name} has the first turn.`]);
-  const [messages, setMessages] = useState([]);
   const [turnSeconds, setTurnSeconds] = useState(90);
   const [fastMode, setFastMode] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
@@ -477,7 +355,7 @@ function Game({ setup, onExit }) {
   const currentPlayer = players[turn];
   const localPlayer = setup.online ? players.find((player) => player.peerId === setup.localPeerId) : currentPlayer;
   const canAct = !setup.online || currentPlayer.peerId === setup.localPeerId;
-  const canTrade = Boolean(localPlayer && !localPlayer.bankrupt && !setup.spectator && !pendingTrade && !auction && !rolling && pendingBuy === null && !card);
+  const canTrade = Boolean(localPlayer && !localPlayer.bankrupt && !pendingTrade && !auction && !rolling && pendingBuy === null && !card);
   const hostCanAdvanceOffline = setup.online && setup.localPeerId === setup.hostPeerId && offlinePeers.includes(currentPlayer.peerId);
   const activePlayers = players.filter((p) => !p.bankrupt);
   const winner = activePlayers.length === 1 ? activePlayers[0] : null;
@@ -486,7 +364,6 @@ function Game({ setup, onExit }) {
   const broadcastTimer = useRef(null);
   const stateRef = useRef(null);
   const [syncAction] = useState(() => setup.online ? setup.network.room.makeAction("game-state") : null);
-  const [chatAction] = useState(() => setup.online ? setup.network.room.makeAction("table-chat") : null);
   const addLog = (text) => setLog((items) => [text, ...items].slice(0, 30));
   const updatePlayer = (id, fn) => setPlayers((list) => list.map((p) => p.id === id ? fn(p) : p));
   const markLocalMove = () => {
@@ -524,7 +401,7 @@ function Game({ setup, onExit }) {
       receivingState.current = true;
       setPlayers(state.players); setOwnership(state.ownership); setTurn(state.turn); setDice(state.dice);
       setRolling(state.rolling); setRolled(state.rolled); setExtraTurn(state.extraTurn); setDoublesCount(state.doublesCount);
-      setPendingBuy(state.pendingBuy); setCard(state.card); setAuction(state.auction); setAuctionQueue(state.auctionQueue || []); setDebtTo(state.debtTo);
+      setPendingBuy(state.pendingBuy); setCard(state.card); setAuction(state.auction); setAuctionQueue(state.auctionQueue || []); setAuctionAdvancesTurn(state.auctionAdvancesTurn ?? true); setDebtTo(state.debtTo);
       setPendingTrade(state.pendingTrade); setChanceDeck(state.chanceDeck); setChestDeck(state.chestDeck);
       setBankHouses(state.bankHouses); setBankHotels(state.bankHotels); setLog(state.log);
       setTimeout(() => { receivingState.current = false; }, 0);
@@ -532,64 +409,33 @@ function Game({ setup, onExit }) {
   }, [syncAction]);
 
   useEffect(() => {
-    if (!chatAction) return;
-    chatAction.onMessage = (message) => setMessages((items) => [...items, message].slice(-30));
-  }, [chatAction]);
-
-  useEffect(() => {
     if (!syncAction || receivingState.current || !broadcasting.current) return;
-    syncAction.send({ players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log });
-  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log, syncAction]);
+    syncAction.send({ players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, auctionAdvancesTurn, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log });
+  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, auctionAdvancesTurn, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log, syncAction]);
 
   useEffect(() => {
-    stateRef.current = { players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log };
-  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log]);
+    stateRef.current = { players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, auctionAdvancesTurn, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log };
+  }, [players, ownership, turn, dice, rolling, rolled, extraTurn, doublesCount, pendingBuy, card, auction, auctionQueue, auctionAdvancesTurn, debtTo, pendingTrade, chanceDeck, chestDeck, bankHouses, bankHotels, log]);
 
   useEffect(() => {
     if (!setup.online || setup.localPeerId !== setup.hostPeerId) return;
     setup.network.room.onPeerJoin = (peerId) => {
       setOfflinePeers((peers) => peers.filter((id) => id !== peerId));
       const seatedPlayer = stateRef.current?.players.find((player) => player.peerId === peerId);
-      if (!seatedPlayer) {
-        setup.network.startAction.send({ players: setup.players, roomCode: setup.roomCode, tableName: setup.tableName, hostPeerId: setup.hostPeerId, spectator: true }, { target: peerId });
-      }
+      if (!seatedPlayer) return;
+      setup.network.startAction.send({ players: stateRef.current.players, roomCode: setup.roomCode, tableName: setup.tableName, hostPeerId: setup.hostPeerId }, { target: peerId });
       setTimeout(() => syncAction.send(stateRef.current, { target: peerId }), 700);
     };
     setTimeout(() => syncAction.send(stateRef.current), 500);
-    const announceGame = () => {
-      if (!setup.publicRoom) return;
-      setup.network.listingAction?.send({
-        code: setup.roomCode,
-        name: setup.tableName,
-        players: stateRef.current?.players.filter((player) => !player.bankrupt).length || setup.players.length,
-        status: "In progress",
-        seenAt: Date.now(),
-      });
-    };
-    setup.network.announceListing = announceGame;
-    if (setup.network.discoveryAction) setup.network.discoveryAction.onMessage = announceGame;
-    if (setup.network.directory) setup.network.directory.room.onPeerJoin = announceGame;
-    announceGame();
-    const directoryTimer = setInterval(announceGame, 2500);
-    return () => clearInterval(directoryTimer);
   }, [setup, syncAction]);
 
   useEffect(() => {
     if (!setup.online) return;
     setup.network.room.onPeerLeave = (peerId) => {
       setOfflinePeers((peers) => [...new Set([...peers, peerId])]);
-      addLog(`${players.find((player) => player.peerId === peerId)?.name || "A spectator"} disconnected.`);
+      addLog(`${players.find((player) => player.peerId === peerId)?.name || "A player"} disconnected.`);
     };
   }, [setup, players]);
-
-  const sendMessage = (text) => {
-    const clean = text.trim().slice(0, 120);
-    if (!clean) return;
-    const author = players.find((p) => p.peerId === setup.localPeerId)?.name || (setup.spectator ? "Spectator" : currentPlayer.name);
-    const message = { id: `${Date.now()}-${Math.random()}`, author, text: clean };
-    setMessages((items) => [...items, message].slice(-30));
-    chatAction?.send(message);
-  };
   const playSound = (frequency = 260, duration = .08) => {
     if (!soundOn) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -603,7 +449,7 @@ function Game({ setup, onExit }) {
     oscillator.stop(context.currentTime + duration);
   };
 
-  const settleSpace = (playerId, position, total, workingPlayers = players) => {
+  const settleSpace = (playerId, position, total, workingPlayers = players, rentRule = {}) => {
     const space = BOARD[position];
     const state = ownership[position];
     const player = workingPlayers.find((p) => p.id === playerId);
@@ -611,7 +457,9 @@ function Game({ setup, onExit }) {
       if (!state.owner) { setPendingBuy(position); addLog(`${player.name} can buy ${space.name} for ${money(space.price)}.`); }
       else if (state.owner !== playerId) {
         const owner = workingPlayers.find((p) => p.id === state.owner);
-        const rent = calculateRent(space, state, owner, total);
+        const rent = rentRule.utilityMultiplier
+          ? total * rentRule.utilityMultiplier
+          : calculateRent(space, state, owner, total) * (rentRule.rentMultiplier || 1);
         transfer(playerId, owner.id, rent, `${player.name} paid ${owner.name} ${money(rent)} rent.`);
       }
     } else if (space.type === "tax") {
@@ -660,16 +508,56 @@ function Game({ setup, onExit }) {
     addLog(`${name} drew ${type === "chance" ? "a Chance card" : "Community Chest"}: ${drawn.text}`);
     if (drawn.jail) sendToJail(id);
     else if (drawn.getOutOfJail) updatePlayer(id, (player) => ({ ...player, jailCards: [...player.jailCards, type] }));
-    else if (drawn.money) updatePlayer(id, (p) => ({ ...p, money: p.money + drawn.money }));
-    else if (drawn.moveBack) {
+    else if (drawn.money) {
+      setDebtTo(null);
+      updatePlayer(id, (p) => ({ ...p, money: p.money + drawn.money }));
+    }
+    else if (drawn.collectEach || drawn.payEach) {
+      const amount = drawn.collectEach || drawn.payEach;
+      const others = workingPlayers.filter((player) => player.id !== id && !player.bankrupt);
+      const direction = drawn.collectEach ? 1 : -1;
+      const updated = workingPlayers.map((player) => {
+        if (player.id === id) return { ...player, money: player.money + direction * amount * others.length };
+        if (!player.bankrupt) return { ...player, money: player.money - direction * amount };
+        return player;
+      });
+      setPlayers(updated);
+      setDebtTo(drawn.collectEach ? id : null);
+      addLog(`${name} ${drawn.collectEach ? "collected" : "paid"} ${money(amount)} ${drawn.collectEach ? "from" : "to"} each player.`);
+    } else if (drawn.repairs) {
+      const player = workingPlayers.find((item) => item.id === id);
+      const buildings = player.properties.reduce((totals, index) => {
+        const count = ownership[index].houses;
+        return count === 5 ? { ...totals, hotels: totals.hotels + 1 } : { ...totals, houses: totals.houses + count };
+      }, { houses: 0, hotels: 0 });
+      const total = buildings.houses * drawn.repairs.house + buildings.hotels * drawn.repairs.hotel;
+      updatePlayer(id, (item) => ({ ...item, money: item.money - total }));
+      setDebtTo(null);
+      addLog(`${name} paid ${money(total)} for ${buildings.houses} houses and ${buildings.hotels} hotels.`);
+    } else if (drawn.nearest) {
+      const player = workingPlayers.find((item) => item.id === id);
+      const destinations = BOARD.map((space, index) => ({ ...space, index })).filter((space) => space.type === drawn.nearest);
+      const destination = destinations.find((space) => space.index > player.position) || destinations[0];
+      const passedGo = destination.index < player.position;
+      const cardDice = drawn.nearest === "utility" ? [Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6)] : null;
+      const total = cardDice ? cardDice[0] + cardDice[1] : 7;
+      const updated = workingPlayers.map((item) => item.id === id ? { ...item, position: destination.index, money: item.money + (passedGo ? 200 : 0) } : item);
+      setPlayers(updated);
+      if (passedGo) addLog(`${name} passed GO and collected $200.`);
+      if (cardDice) addLog(`${name} rolled ${total} for the Utility card.`);
+      setTimeout(() => settleSpace(id, destination.index, total, updated, drawn.nearest === "utility" ? { utilityMultiplier: 10 } : { rentMultiplier: 2 }), 0);
+    } else if (drawn.moveBack) {
       const player = workingPlayers.find((p) => p.id === id);
       const position = (player.position - drawn.moveBack + 40) % 40;
       const updated = workingPlayers.map((p) => p.id === id ? { ...p, position } : p);
       setPlayers(updated);
       setTimeout(() => settleSpace(id, position, 7, updated), 0);
     } else if (drawn.move !== undefined) {
-      const updated = workingPlayers.map((p) => p.id === id ? { ...p, money: drawn.move < p.position ? p.money + 200 : p.money, position: drawn.move } : p);
+      const player = workingPlayers.find((p) => p.id === id);
+      const passedGo = drawn.move < player.position;
+      const updated = workingPlayers.map((p) => p.id === id ? { ...p, money: passedGo ? p.money + 200 : p.money, position: drawn.move } : p);
       setPlayers(updated);
+      if (passedGo) addLog(`${name} passed GO and collected $200.`);
       if (drawn.move !== 0) setTimeout(() => settleSpace(id, drawn.move, 7, updated), 0);
     }
   };
@@ -730,7 +618,7 @@ function Game({ setup, onExit }) {
   };
   const endTurn = () => {
     markLocalMove();
-    if (pendingBuy !== null) { setAuction({ property: pendingBuy, bids: {}, passed: [] }); setPendingBuy(null); return; }
+    if (pendingBuy !== null) { setAuctionAdvancesTurn(true); setAuction({ property: pendingBuy, bids: {}, passed: [] }); setPendingBuy(null); return; }
     finishTurn();
   };
   const finishTurn = () => {
@@ -754,7 +642,7 @@ function Game({ setup, onExit }) {
         setAuctionQueue(auctionQueue.slice(1));
       } else {
         setAuction(null);
-        setTimeout(finishTurn, 0);
+        if (auctionAdvancesTurn) setTimeout(finishTurn, 0);
       }
       return;
     }
@@ -768,7 +656,7 @@ function Game({ setup, onExit }) {
       setAuctionQueue(auctionQueue.slice(1));
     } else {
       setAuction(null);
-      setTimeout(finishTurn, 0);
+      if (auctionAdvancesTurn) setTimeout(finishTurn, 0);
     }
   };
   const placeBid = (bidderId, bid) => {
@@ -784,30 +672,34 @@ function Game({ setup, onExit }) {
     setAuction(next);
     if (active.length <= (Object.keys(next.bids).length ? 1 : 0)) setTimeout(() => finalizeAuction(next), 0);
   };
-  const declareBankruptcy = () => {
+  const declareBankruptcy = (debtorId = currentPlayer.id) => {
     markLocalMove();
-    const id = currentPlayer.id;
+    const id = debtorId;
+    const debtor = players.find((player) => player.id === id);
+    if (!debtor || debtor.money >= 0) return;
     const creditor = players.find((p) => p.id === debtTo && !p.bankrupt);
-    const returnedHouses = currentPlayer.properties.reduce((sum, property) => sum + (ownership[property].houses < 5 ? ownership[property].houses : 0), 0);
-    const returnedHotels = currentPlayer.properties.filter((property) => ownership[property].houses === 5).length;
-    const liquidationValue = currentPlayer.properties.reduce((sum, property) => sum + Math.floor((BOARD[property].houseCost || 0) / 2) * ownership[property].houses, 0);
-    const interest = creditor ? currentPlayer.properties.reduce((total, index) => total + (ownership[index].mortgaged ? Math.ceil(BOARD[index].price * .05) : 0), 0) : 0;
-    setPlayers((list) => list.map((p) => p.id === id ? { ...p, money: 0, properties: [], jailCards: [], bankrupt: true } : p.id === creditor?.id ? { ...p, money: p.money + currentPlayer.money + liquidationValue - interest, properties: [...new Set([...p.properties, ...currentPlayer.properties])], jailCards: [...p.jailCards, ...currentPlayer.jailCards] } : p));
+    const returnedHouses = debtor.properties.reduce((sum, property) => sum + (ownership[property].houses < 5 ? ownership[property].houses : 0), 0);
+    const returnedHotels = debtor.properties.filter((property) => ownership[property].houses === 5).length;
+    const liquidationValue = debtor.properties.reduce((sum, property) => sum + Math.floor((BOARD[property].houseCost || 0) / 2) * ownership[property].houses, 0);
+    const interest = creditor ? debtor.properties.reduce((total, index) => total + (ownership[index].mortgaged ? Math.ceil(BOARD[index].price * .05) : 0), 0) : 0;
+    setPlayers((list) => list.map((p) => p.id === id ? { ...p, money: 0, properties: [], jailCards: [], bankrupt: true } : p.id === creditor?.id ? { ...p, money: p.money + debtor.money + liquidationValue - interest, properties: [...new Set([...p.properties, ...debtor.properties])], jailCards: [...p.jailCards, ...debtor.jailCards] } : p));
     setOwnership((all) => Object.fromEntries(Object.entries(all).map(([i, state]) => [i, state.owner === id ? { owner: creditor?.id || null, houses: 0, mortgaged: creditor ? state.mortgaged : false } : state])));
     setBankHouses((count) => count + returnedHouses);
     setBankHotels((count) => count + returnedHotels);
     setDebtTo(null);
-    setExtraTurn(false);
+    if (id === currentPlayer.id) setExtraTurn(false);
     if (!creditor) {
-      currentPlayer.jailCards.forEach(returnJailCard);
-      if (currentPlayer.properties.length) {
-        setAuction({ property: currentPlayer.properties[0], bids: {}, passed: [] });
-        setAuctionQueue(currentPlayer.properties.slice(1));
+      debtor.jailCards.forEach(returnJailCard);
+      if (debtor.properties.length) {
+        setAuctionAdvancesTurn(id === currentPlayer.id);
+        setAuction({ property: debtor.properties[0], bids: {}, passed: [] });
+        setAuctionQueue(debtor.properties.slice(1));
       }
     }
-    addLog(`${currentPlayer.name} declared bankruptcy${creditor ? ` to ${creditor.name}` : " to the Bank"}.`);
+    addLog(`${debtor.name} declared bankruptcy${creditor ? ` to ${creditor.name}` : " to the Bank"}.`);
     if (interest) addLog(`${creditor.name} paid ${money(interest)} interest on transferred mortgaged properties.`);
-    if (!creditor && currentPlayer.properties.length) return;
+    if (!creditor && debtor.properties.length) return;
+    if (id !== currentPlayer.id) return;
     let next = (turn + 1) % players.length;
     while (players[next].bankrupt || players[next].id === id) next = (next + 1) % players.length;
     setTurn(next); setRolled(false); setDoublesCount(0); setSelected(null); setCard(null);
@@ -920,10 +812,11 @@ function Game({ setup, onExit }) {
     return () => clearInterval(timer);
   }, [turn, rolled, canAct, hostCanAdvanceOffline, rolling, winner]);
 
-  const owned = useMemo(() => currentPlayer.properties.map((i) => ({ index: i, ...BOARD[i], ...ownership[i] })), [currentPlayer, ownership]);
+  const walletPlayer = localPlayer || currentPlayer;
+  const owned = useMemo(() => walletPlayer.properties.map((i) => ({ index: i, ...BOARD[i], ...ownership[i] })), [walletPlayer, ownership]);
   return <main className="game-shell">
     <div className="table-props" aria-hidden="true"><span className="coffee-cup" /><span className="coaster">TT</span><span className="pencil" /><span className="money-stack">$</span><span className="snack-bowl">•••</span></div>
-    <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}{setup.spectator ? " · SPECTATING" : ""}</span><strong>{setup.roomCode}</strong></div><div className="game-tools"><button className={fastMode ? "active" : ""} onClick={() => setFastMode(!fastMode)} title="Fast animations"><Lightning /></button><button className={soundOn ? "active" : ""} onClick={() => setSoundOn(!soundOn)} title="Sound effects"><SpeakerHigh /></button><button className={musicOn ? "active" : ""} onClick={() => setMusicOn(!musicOn)} title="Background music"><MusicNotes /></button></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN · {turnSeconds}s</small><strong>{currentPlayer.name}</strong></div><Timer /></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
+    <header className="game-topbar"><Brand /><div className="room-mini"><span>{setup.tableName}</span><strong>{setup.roomCode}</strong></div><div className="game-tools"><button className={fastMode ? "active" : ""} onClick={() => setFastMode(!fastMode)} title="Fast animations"><Lightning /></button><button className={soundOn ? "active" : ""} onClick={() => setSoundOn(!soundOn)} title="Sound effects"><SpeakerHigh /></button><button className={musicOn ? "active" : ""} onClick={() => setMusicOn(!musicOn)} title="Background music"><MusicNotes /></button></div><div className="turn-banner"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>CURRENT TURN · {turnSeconds}s</small><strong>{currentPlayer.name}</strong></div><Timer /></div><button className="secondary" onClick={onExit}><X /> Leave</button></header>
     <section className="game-layout">
       <aside className="left-rail panel"><div className="panel-title"><span><Users /> Players</span><small>{activePlayers.length} left</small></div>
         <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} offline={offlinePeers.includes(player.peerId)} canTrade={canTrade && player.id !== localPlayer?.id} onTrade={setTradeTarget} />)}</div>
@@ -939,14 +832,14 @@ function Game({ setup, onExit }) {
         </div>
       </section>
       <aside className="right-rail">
-        <section className="panel wallet"><div className="panel-title"><span><Money /> Your wallet</span><strong>{money(currentPlayer.money)}</strong></div>
+        <section className="panel wallet"><div className="panel-title"><span><Money /> Your wallet</span><strong>{money(walletPlayer.money)}</strong></div>
           <div className="asset-row"><span><Buildings /> Properties</span><strong>{owned.length}</strong></div>
-          <div className="asset-row"><span>Get Out of Jail Free</span><strong>{currentPlayer.jailCards.length}</strong></div>
+          <div className="asset-row"><span>Get Out of Jail Free</span><strong>{walletPlayer.jailCards.length}</strong></div>
           <div className="asset-row bank-stock"><span><House /> Bank stock</span><strong>{bankHouses}H · {bankHotels} hotels</strong></div>
           <div className="owned-strip">{owned.length ? owned.map((item) => <button onClick={() => setSelected(item.index)} style={{ borderTopColor: `var(--group-${item.group})` }} key={item.index}>{item.name.split(" ")[0]}<small>{item.mortgaged ? "M" : item.houses ? `${item.houses}H` : ""}</small></button>) : <p>Land somewhere nice to start your collection.</p>}</div>
-          {currentPlayer.money < 0 && <button className="danger" onClick={declareBankruptcy}>Declare bankruptcy</button>}
+          {walletPlayer.money < 0 && <button className="danger" onClick={() => declareBankruptcy(walletPlayer.id)}>Declare bankruptcy</button>}
         </section>
-        <SocialPanel log={log} messages={messages} onSend={sendMessage} />
+        <EventLog log={log} />
       </aside>
     </section>
     {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, canAct, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
@@ -961,9 +854,6 @@ function Game({ setup, onExit }) {
 export default function App() {
   const [game, setGame] = useState(null);
   const exitGame = () => {
-    if (game?.publicRoom && game.localPeerId === game.hostPeerId) game.network?.unlistAction?.send({ code: game.roomCode });
-    if (game?.network?.discoveryAction) game.network.discoveryAction.onMessage = () => {};
-    if (game?.network?.directory) game.network.directory.room.onPeerJoin = () => {};
     game?.network?.room.leave();
     setGame(null);
   };
