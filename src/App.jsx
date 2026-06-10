@@ -374,6 +374,8 @@ function TradeOfferModal({ offer, players, onResolve, canResolve }) {
   </section></div>;
 }
 
+const AUCTION_TURN_MS = 8000;
+
 function EventLog({ log }) {
   return <section className="panel event-log"><div className="panel-title"><span>Game history</span><i /></div>
     <div className="social-scroll"><div className="log-list">{log.slice(0, 30).map((item, i) => <p key={`${item}-${i}`}><span>{i === 0 ? "NOW" : `${i + 1}`}</span>{item}</p>)}</div></div>
@@ -385,15 +387,24 @@ function AuctionModal({ auction, players, localPlayerId, online, onBid, onPass }
   const [bidderId, setBidderId] = useState(localPlayerId || eligible[0]?.id);
   const bidder = players.find((p) => p.id === bidderId);
   const highest = Object.entries(auction.bids).sort((a, b) => b[1] - a[1])[0];
+  const highestBidder = players.find((p) => p.id === highest?.[0]);
   const minimum = (highest?.[1] || 0) + 1;
   const [bid, setBid] = useState(minimum);
+  const [timeLeft, setTimeLeft] = useState(() => Math.max(0, Math.ceil((auction.deadline - Date.now()) / 1000)));
   const canAct = (!online || bidderId === localPlayerId) && !auction.passed.includes(bidderId);
   const isHighestBidder = highest?.[0] === bidderId;
   useEffect(() => setBid(minimum), [minimum]);
+  useEffect(() => {
+    const tick = () => setTimeLeft(Math.max(0, Math.ceil((auction.deadline - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [auction.deadline]);
   const property = BOARD[auction.property];
   return <div className="modal-backdrop"><section className="trade-modal auction-modal">
-    <div className="modal-head"><div><span className="eyebrow">Live bank auction</span><h2>{property.name}</h2></div><strong>{highest ? `${players.find((p) => p.id === highest[0])?.name}: ${money(highest[1])}` : "No bids yet"}</strong></div>
-    <p className="trade-note">Every active player may bid. Passing removes a player from this auction.</p>
+    <div className="modal-head"><div><span className="eyebrow">Live bank auction</span><h2>{property.name}</h2></div><strong>{highest ? `${highestBidder?.name}: ${money(highest[1])}` : "No bids yet"}</strong></div>
+    <div className="auction-status"><span>Time left</span><strong>{timeLeft}s</strong><small>{highestBidder ? `${highestBidder.name} takes it if nobody tops the bid.` : "First bid opens the countdown."}</small></div>
+    <p className="trade-note">Each valid bid resets the timer. If everyone else passes, the last bidder wins immediately.</p>
     <label>Bidder<select disabled={online} value={bidderId} onChange={(e) => { setBidderId(e.target.value); setBid(minimum); }}>{eligible.map((p) => <option value={p.id} key={p.id}>{p.name} · {money(p.money)}</option>)}</select></label>
     <label>Bid<input type="number" min={minimum} max={bidder?.money || 0} value={bid} onChange={(e) => setBid(+e.target.value)} /></label>
     <div className="auction-bidders">{players.filter((p) => !p.bankrupt).map((p) => <span className={auction.passed.includes(p.id) ? "passed" : ""} key={p.id}>{p.name}{auction.bids[p.id] ? ` · ${money(auction.bids[p.id])}` : ""}</span>)}</div>
@@ -442,6 +453,7 @@ function Game({ setup, onExit }) {
   const broadcastTimer = useRef(null);
   const stateRef = useRef(null);
   const [syncAction] = useState(() => setup.online ? setup.network.room.makeAction("game-state") : null);
+  const makeAuctionState = (property) => ({ property, bids: {}, passed: [], deadline: Date.now() + AUCTION_TURN_MS });
   const addLog = (text) => setLog((items) => [text, ...items].slice(0, 30));
   const updatePlayer = (id, fn) => setPlayers((list) => list.map((p) => p.id === id ? fn(p) : p));
   const markLocalMove = () => {
@@ -696,7 +708,7 @@ function Game({ setup, onExit }) {
   };
   const endTurn = () => {
     markLocalMove();
-    if (pendingBuy !== null) { setAuctionAdvancesTurn(true); setAuction({ property: pendingBuy, bids: {}, passed: [] }); setPendingBuy(null); return; }
+    if (pendingBuy !== null) { setAuctionAdvancesTurn(true); setAuction(makeAuctionState(pendingBuy)); setPendingBuy(null); return; }
     finishTurn();
   };
   const finishTurn = () => {
@@ -712,11 +724,12 @@ function Game({ setup, onExit }) {
     setTurn(next); setRolled(false); setDoublesCount(0); setSelected(null); setCard(null);
   };
   const finalizeAuction = (result) => {
+    markLocalMove();
     const highest = Object.entries(result.bids).sort((a, b) => b[1] - a[1])[0];
     if (!highest) {
       addLog(`${BOARD[result.property].name} received no bids.`);
       if (auctionQueue.length) {
-        setAuction({ property: auctionQueue[0], bids: {}, passed: [] });
+        setAuction(makeAuctionState(auctionQueue[0]));
         setAuctionQueue(auctionQueue.slice(1));
       } else {
         setAuction(null);
@@ -730,7 +743,7 @@ function Game({ setup, onExit }) {
     setOwnership((all) => ({ ...all, [result.property]: { ...all[result.property], owner: bidderId } }));
     addLog(`${players.find((p) => p.id === bidderId)?.name} won ${space.name} at auction for ${money(bid)}.`);
     if (auctionQueue.length) {
-      setAuction({ property: auctionQueue[0], bids: {}, passed: [] });
+      setAuction(makeAuctionState(auctionQueue[0]));
       setAuctionQueue(auctionQueue.slice(1));
     } else {
       setAuction(null);
@@ -739,7 +752,7 @@ function Game({ setup, onExit }) {
   };
   const placeBid = (bidderId, bid) => {
     markLocalMove();
-    const next = { ...auction, bids: { ...auction.bids, [bidderId]: bid } };
+    const next = { ...auction, bids: { ...auction.bids, [bidderId]: bid }, deadline: Date.now() + AUCTION_TURN_MS };
     setAuction(next);
     addLog(`${players.find((p) => p.id === bidderId)?.name} bid ${money(bid)} on ${BOARD[auction.property].name}.`);
   };
@@ -750,6 +763,12 @@ function Game({ setup, onExit }) {
     setAuction(next);
     if (active.length <= (Object.keys(next.bids).length ? 1 : 0)) setTimeout(() => finalizeAuction(next), 0);
   };
+  useEffect(() => {
+    if (!auction) return;
+    if (setup.online && setup.localPeerId !== setup.hostPeerId) return;
+    const timer = setTimeout(() => finalizeAuction(auction), Math.max(0, auction.deadline - Date.now()));
+    return () => clearTimeout(timer);
+  }, [auction, setup, auctionQueue, auctionAdvancesTurn, players]);
   const declareBankruptcy = (debtorId = currentPlayer.id) => {
     markLocalMove();
     const id = debtorId;
@@ -770,7 +789,7 @@ function Game({ setup, onExit }) {
       debtor.jailCards.forEach(returnJailCard);
       if (debtor.properties.length) {
         setAuctionAdvancesTurn(id === currentPlayer.id);
-        setAuction({ property: debtor.properties[0], bids: {}, passed: [] });
+        setAuction(makeAuctionState(debtor.properties[0]));
         setAuctionQueue(debtor.properties.slice(1));
       }
     }
