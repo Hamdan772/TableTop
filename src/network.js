@@ -2,11 +2,19 @@ import { joinRoom, selfId } from "@trystero-p2p/mqtt";
 
 const config = {
   appId: "tabletop-stardance-monopoly-v2",
-  // Allows separate browsers on one laptop to join the same room during demos.
   _test_only_mdnsHostFallbackToLoopback: true,
+  turnConfig: [
+    {
+      urls: ["turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=udp"],
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    }
+  ]
 };
 
-export function connectToRoom(code) {
-  const room = joinRoom(config, code.toLowerCase());
+export { selfId };
+
+export function connectToRoom(code, onJoinError) {
+  const room = joinRoom(config, code.toLowerCase(), { onJoinError });
   return { room, selfId, code: code.toUpperCase() };
 }

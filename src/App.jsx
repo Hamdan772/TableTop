@@ -8,7 +8,7 @@ import {
   BOARD, CHANCE, CHEST, TOKENS, calculateRent, createPlayers, initialOwnership, money,
 } from "./game";
 import { TokenPiece } from "./Pieces";
-import { connectToRoom } from "./network";
+import { selfId, connectToRoom } from "./network";
 
 const randomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 const shuffle = (items) => {
@@ -81,14 +81,16 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
 
   const join = (roomCode = code) => {
     if (roomCode.length !== 4 || connection) return;
-    const network = connectToRoom(roomCode);
+    const network = connectToRoom(roomCode, (details) => {
+      setStatus(`Connection error: ${details.error}. Try refreshing or check your network.`);
+    });
     const profile = network.room.makeAction("profile");
     const rosterAction = network.room.makeAction("roster");
     const joinAction = network.room.makeAction("join-request");
     const startAction = network.room.makeAction("start");
-    const mine = { peerId: network.selfId, name, token, ready: role === "host" };
+    const mine = { peerId: selfId, name, token, ready: role === "host" };
     profileRef.current = mine;
-    const connected = { ...network, profile, rosterAction, joinAction, startAction };
+    const connected = { room: network.room, selfId, profile, rosterAction, joinAction, startAction };
     connectionRef.current = connected;
     rosterRef.current = [mine];
     setConnection(connected);
@@ -120,7 +122,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
       rosterAction.send(rosterRef.current, { target: peerId });
     };
     rosterAction.onMessage = (next) => {
-      const mine = next.find((player) => player.peerId === network.selfId);
+      const mine = next.find((player) => player.peerId === selfId);
       if (mine && mine.token !== profileRef.current.token) {
         profileRef.current = mine;
         setToken(mine.token);
@@ -131,16 +133,16 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     };
     startAction.onMessage = (setup) => {
       handedOff.current = true;
-      onStart({ ...setup, network: connected, localPeerId: network.selfId, online: true });
+      onStart({ ...setup, network: connected, localPeerId: selfId, online: true });
     };
-    network.room.onPeerJoin = (peerId) => {
+    connected.room.onPeerJoin = (peerId) => {
       connected.hasPeer = true;
       profile.send(profileRef.current);
       if (role === "guest") joinAction.send(profileRef.current, { target: peerId });
       if (role === "host") rosterAction.send(rosterRef.current, { target: peerId });
       setStatus("Peer connected. Ready when the table is.");
     };
-    network.room.onPeerLeave = (peerId) => {
+connected.room.onPeerLeave = (peerId) => {
       setRoster((current) => {
         const next = current.filter((p) => p.peerId !== peerId);
         rosterRef.current = next;
@@ -165,11 +167,11 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
   const updateProfile = (key, value) => {
     if (key === "name") setName(value); else setToken(value);
     if (!connection) return;
-    const mine = { peerId: connection.selfId, name: key === "name" ? value : name, token: key === "token" ? value : token, ready };
+    const mine = { peerId: selfId, name: key === "name" ? value : name, token: key === "token" ? value : token, ready };
     profileRef.current = mine;
     connection.profile.send(mine);
     setRoster((current) => {
-      const next = current.map((p) => p.peerId === connection.selfId ? mine : p);
+      const next = current.map((p) => p.peerId === selfId ? mine : p);
       rosterRef.current = next;
       if (role === "host") connection.rosterAction.send(next);
       return next;
@@ -182,19 +184,19 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     profileRef.current = mine;
     connection.profile.send(mine);
     setRoster((current) => {
-      const next = current.map((player) => player.peerId === connection.selfId ? mine : player);
+      const next = current.map((player) => player.peerId === selfId ? mine : player);
       rosterRef.current = next;
       return next;
     });
   };
   const startOnline = async () => {
-    const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s private table`, hostPeerId: connection.selfId };
+    const setup = { players: createPlayers(roster), roomCode: code.toUpperCase(), tableName: `${name}'s private table`, hostPeerId: selfId };
     setStatus("Dealing the board to everyone...");
     await connection.startAction.send(setup);
     handedOff.current = true;
-    onStart({ ...setup, network: connection, localPeerId: connection.selfId, online: true });
+    onStart({ ...setup, network: connection, localPeerId: selfId, online: true });
   };
-  const tokensUsed = roster.filter((p) => p.peerId !== connection?.selfId).map((p) => p.token);
+  const tokensUsed = roster.filter((p) => p.peerId !== selfId).map((p) => p.token);
   const leaveRoom = () => {
     connection?.room.leave();
     onBack();
@@ -206,7 +208,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     <div className="online-profile"><label>Your name<input value={name} onChange={(e) => updateProfile("name", e.target.value)} /></label><label>Your token<select value={token} onChange={(e) => updateProfile("token", e.target.value)}>{TOKENS.map((item) => <option disabled={tokensUsed.includes(item)} key={item}>{item}</option>)}</select></label></div>
     {!connection ? <button className="primary big" disabled={code.length !== 4 || !name.trim()} onClick={() => join()}>Connect to room</button> : <>
       <button className="room-code online-code" onClick={() => navigator.clipboard?.writeText(code)}><span>SHARE ROOM CODE</span><strong>{code}</strong><Copy /></button>
-      <div className="online-roster">{roster.map((player) => <article className="seat" key={player.peerId}><div className="seat-avatar"><TokenPiece token={player.token} color="#9ca9a2" /></div><div><strong>{player.name}</strong><span>{player.peerId === connection.selfId ? "You" : "Connected peer"} · {player.token}</span></div><b className={player.ready ? "roster-ready is-ready" : "roster-ready"}>{player.ready ? "READY" : "WAITING"}</b></article>)}</div>
+      <div className="online-roster">{roster.map((player) => <article className="seat" key={player.peerId}><div className="seat-avatar"><TokenPiece token={player.token} color="#9ca9a2" /></div><div><strong>{player.name}</strong><span>{player.peerId === selfId ? "You" : "Connected peer"} · {player.token}</span></div><b className={player.ready ? "roster-ready is-ready" : "roster-ready"}>{player.ready ? "READY" : "WAITING"}</b></article>)}</div>
       {role === "guest" && <button className={ready ? "secondary big ready-toggle" : "primary big ready-toggle"} onClick={toggleReady}>{ready ? <Check /> : null}{ready ? "Ready" : "I'm ready"}</button>}
       {role === "host" && <button className="primary big" disabled={roster.length < 2 || roster.some((p) => !p.ready) || new Set(roster.map((p) => p.token)).size !== roster.length} onClick={startOnline}>Start online game</button>}
     </>}
