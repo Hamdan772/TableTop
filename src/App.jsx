@@ -62,6 +62,8 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
   const [connection, setConnection] = useState(null);
   const [roster, setRoster] = useState([]);
   const [ready, setReady] = useState(role === "host");
+  const [peerConnected, setPeerConnected] = useState(false);
+  const [canRetry, setCanRetry] = useState(false);
   const [status, setStatus] = useState(role === "host" ? "Opening room..." : "Enter the room code to connect.");
   const connectionRef = useRef(null);
   const profileRef = useRef(null);
@@ -80,9 +82,14 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
   }, []);
 
   const join = (roomCode = code) => {
-    if (roomCode.length !== 4 || connection) return;
-    const network = connectToRoom(roomCode, (details) => {
-      setStatus(`Connection error: ${details.error}. Try refreshing or check your network.`);
+    const normalizedCode = roomCode.trim().toUpperCase();
+    if (normalizedCode.length !== 4 || connection) return;
+    setCode(normalizedCode);
+    const network = connectToRoom(normalizedCode, (details) => {
+      const message = details.error instanceof Error ? details.error.message : String(details.error || "Could not reach the other player");
+      setPeerConnected(false);
+      setCanRetry(true);
+      setStatus(`Connection error: ${message}. Try the connection again.`);
     });
     const profile = network.room.makeAction("profile");
     const rosterAction = network.room.makeAction("roster");
@@ -96,7 +103,7 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     setConnection(connected);
     setRoster([mine]);
     setStatus(role === "host" ? "Room open. Waiting for players..." : "Looking for the host...");
-    const addToRoster = (entry) => {
+    const addToRoster = (entry, targetPeerId) => {
       if (role !== "host") return;
       setRoster((current) => {
         const otherPlayers = current.filter((player) => player.peerId !== entry.peerId);
@@ -112,14 +119,14 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
         rosterRef.current = next;
         connected.rosterCount = next.length;
         rosterAction.send(next);
+        if (targetPeerId) rosterAction.send(next, { target: targetPeerId });
         return next;
       });
     };
-    profile.onMessage = addToRoster;
-    joinAction.onMessage = (entry, peerId) => {
+    profile.onMessage = (entry) => addToRoster(entry);
+    joinAction.onMessage = (entry, { peerId }) => {
       if (role !== "host") return;
-      addToRoster(entry);
-      rosterAction.send(rosterRef.current, { target: peerId });
+      addToRoster(entry, peerId);
     };
     rosterAction.onMessage = (next) => {
       const mine = next.find((player) => player.peerId === selfId);
@@ -137,12 +144,17 @@ function OnlineLobby({ role, initialCode, onBack, onStart }) {
     };
     connected.room.onPeerJoin = (peerId) => {
       connected.hasPeer = true;
+      setPeerConnected(true);
+      setCanRetry(false);
       profile.send(profileRef.current);
       if (role === "guest") joinAction.send(profileRef.current, { target: peerId });
       if (role === "host") rosterAction.send(rosterRef.current, { target: peerId });
       setStatus("Peer connected. Ready when the table is.");
     };
-connected.room.onPeerLeave = (peerId) => {
+    connected.room.onPeerLeave = (peerId) => {
+      connected.hasPeer = Object.keys(connected.room.getPeers()).length > 0;
+      setPeerConnected(connected.hasPeer);
+      if (!connected.hasPeer && role === "guest") setCanRetry(true);
       setRoster((current) => {
         const next = current.filter((p) => p.peerId !== peerId);
         rosterRef.current = next;
@@ -160,7 +172,11 @@ connected.room.onPeerLeave = (peerId) => {
       if (role === "host") rosterAction.send(rosterRef.current);
     }, 2500);
     connected.connectionTimer = setTimeout(() => {
-      if (!connected.hasPeer && role === "guest") setStatus("No host found yet. Check the code and keep this window open.");
+      if (!connected.hasPeer && role === "guest") {
+        setPeerConnected(false);
+        setCanRetry(true);
+        setStatus("No host found. Check the code, then try the connection again.");
+      }
     }, 12000);
     connected.rosterCount = 1;
   };
@@ -198,13 +214,27 @@ connected.room.onPeerLeave = (peerId) => {
   };
   const tokensUsed = roster.filter((p) => p.peerId !== selfId).map((p) => p.token);
   const leaveRoom = () => {
+    clearInterval(connectionRef.current?.announceTimer);
+    clearTimeout(connectionRef.current?.connectionTimer);
     connection?.room.leave();
     onBack();
+  };
+  const retryConnection = () => {
+    clearInterval(connectionRef.current?.announceTimer);
+    clearTimeout(connectionRef.current?.connectionTimer);
+    connectionRef.current?.room.leave();
+    connectionRef.current = null;
+    rosterRef.current = [];
+    setConnection(null);
+    setRoster([]);
+    setPeerConnected(false);
+    setCanRetry(false);
+    setStatus("Check the room code and connect again.");
   };
   return <main className="join-screen"><Brand /><section className="online-room-card">
     <button className="drawer-close" onClick={leaveRoom}><X /></button>
     <span className="eyebrow">{role === "host" ? "Create online room" : "Join online room"}</span><h2>{connection ? "The table is open." : "Meet at the table."}</h2>
-    {!connection && role === "guest" && <label>Room code<input className="code-input" maxLength="4" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}
+    {!connection && role === "guest" && <label>Room code<input className="code-input" maxLength="4" value={code} onChange={(e) => setCode(e.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase())} /></label>}
     <div className="online-profile"><label>Your name<input value={name} onChange={(e) => updateProfile("name", e.target.value)} /></label><label>Your token<select value={token} onChange={(e) => updateProfile("token", e.target.value)}>{TOKENS.map((item) => <option disabled={tokensUsed.includes(item)} key={item}>{item}</option>)}</select></label></div>
     {!connection ? <button className="primary big" disabled={code.length !== 4 || !name.trim()} onClick={() => join()}>Connect to room</button> : <>
       <button className="room-code online-code" onClick={() => navigator.clipboard?.writeText(code)}><span>SHARE ROOM CODE</span><strong>{code}</strong><Copy /></button>
@@ -213,6 +243,7 @@ connected.room.onPeerLeave = (peerId) => {
       {role === "host" && <button className="primary big" disabled={roster.length < 2 || roster.some((p) => !p.ready) || new Set(roster.map((p) => p.token)).size !== roster.length} onClick={startOnline}>Start online game</button>}
     </>}
     <p className="connection-status"><i /> {status}</p>
+    {role === "guest" && connection && !peerConnected && canRetry && <button className="secondary" onClick={retryConnection}>Try connection again</button>}
   </section></main>;
 }
 
