@@ -259,11 +259,38 @@ function PlayerCard({ player, active, onTrade, canTrade, offline }) {
   </article>;
 }
 
-function PropertyPanel({ index, ownership, players, currentPlayer, canAct, onBuyBuilding, onSellBuilding, onMortgage, onClose }) {
+function PropertyPanel({ index, ownership, players, currentPlayer, canAct, bankHouses, bankHotels, onBuyBuilding, onSellBuilding, onMortgage, onClose }) {
   const space = BOARD[index];
   const state = ownership[index];
   const owner = players.find((p) => p.id === state.owner);
   const canManage = canAct && owner?.id === currentPlayer.id && ["property", "railroad", "utility"].includes(space.type);
+  const group = space.type === "property"
+    ? BOARD.map((item, itemIndex) => ({ ...item, index: itemIndex })).filter((item) => item.group === space.group)
+    : [];
+  const ownsSet = group.length > 0 && group.every((item) => currentPlayer.properties.includes(item.index));
+  const groupMortgaged = group.some((item) => ownership[item.index].mortgaged);
+  const minimumBuildings = group.length ? Math.min(...group.map((item) => ownership[item.index].houses)) : 0;
+  const maximumBuildings = group.length ? Math.max(...group.map((item) => ownership[item.index].houses)) : 0;
+  const buildReason = (item) => {
+    const itemState = ownership[item.index];
+    if (!canManage) return "Manage buildings during your turn";
+    if (!ownsSet) return "Own the complete color set first";
+    if (groupMortgaged) return "Unmortgage every deed in this set";
+    if (itemState.houses !== minimumBuildings) return "Build evenly across the set";
+    if (itemState.houses >= 5) return "This property already has a hotel";
+    if (currentPlayer.money < item.houseCost) return `You need ${money(item.houseCost)}`;
+    if (itemState.houses === 4 && bankHotels < 1) return "The Bank has no hotels left";
+    if (itemState.houses < 4 && bankHouses < 1) return "The Bank has no houses left";
+    return "";
+  };
+  const sellReason = (item) => {
+    const itemState = ownership[item.index];
+    if (!canManage) return "Manage buildings during your turn";
+    if (itemState.houses <= 0) return "No buildings to sell";
+    if (itemState.houses !== maximumBuildings) return "Sell evenly across the set";
+    if (itemState.houses === 5 && bankHouses < 4) return "The Bank needs four houses";
+    return "";
+  };
   return <aside className="drawer">
     <button className="drawer-close" onClick={onClose}><X /></button>
     <div className={`property-hero group-${space.group || space.type}`}><span>{space.type}</span><h2>{space.name}</h2>{space.price && <strong>{money(space.price)}</strong>}</div>
@@ -276,9 +303,27 @@ function PropertyPanel({ index, ownership, players, currentPlayer, canAct, onBuy
     </div>}
     {space.note && <p className="panel-note">{space.note}</p>}
     {owner && <div className="property-state"><span>{state.mortgaged ? "Mortgaged" : `${state.houses === 5 ? "Hotel" : `${state.houses} houses`}`}</span></div>}
+    {space.type === "property" && owner?.id === currentPlayer.id && <section className="set-manager">
+      <div className="set-manager-head"><div><span>Color set</span><strong>{ownsSet ? "Monopoly owned" : `${group.filter((item) => currentPlayer.properties.includes(item.index)).length} of ${group.length} deeds`}</strong></div><small>{money(space.houseCost)} each</small></div>
+      <div className="set-property-list">{group.map((item) => {
+        const itemState = ownership[item.index];
+        const buildBlocked = buildReason(item);
+        const sellBlocked = sellReason(item);
+        return <article className={item.index === index ? "is-current" : ""} key={item.index}>
+          <button className="set-property-name" onClick={() => onClose(item.index)} title={`View ${item.name}`}><i style={{ background: `var(--group-${item.group})` }} /><span>{item.name}<small>{itemState.mortgaged ? "Mortgaged" : itemState.houses === 5 ? "Hotel" : `${itemState.houses} house${itemState.houses === 1 ? "" : "s"}`}</small></span></button>
+          <div className="building-counter" aria-label={`${itemState.houses === 5 ? "Hotel" : `${itemState.houses} houses`} on ${item.name}`}>
+            {itemState.houses === 5 ? <i className="hotel-model" /> : Array.from({ length: 4 }).map((_, buildingIndex) => <i className={buildingIndex < itemState.houses ? "house-model built" : "house-slot"} key={buildingIndex} />)}
+          </div>
+          <div className="building-buttons">
+            <button disabled={Boolean(sellBlocked)} title={sellBlocked || `Sell building on ${item.name}`} onClick={() => onSellBuilding(item.index)}>−</button>
+            <button disabled={Boolean(buildBlocked)} title={buildBlocked || `Build on ${item.name}`} onClick={() => onBuyBuilding(item.index)}>+</button>
+          </div>
+        </article>;
+      })}</div>
+      {!ownsSet && <p className="manager-hint">Collect every deed in this color set to build houses.</p>}
+      {ownsSet && groupMortgaged && <p className="manager-hint">Unmortgage the full set before building.</p>}
+    </section>}
     {canManage && <div className="manage-actions">
-      {space.type === "property" && <button className="primary" disabled={state.mortgaged || state.houses >= 5 || currentPlayer.money < space.houseCost} onClick={() => onBuyBuilding(index)}><House /> {state.houses === 4 ? "Buy hotel" : "Buy house"}</button>}
-      {space.type === "property" && state.houses > 0 && <button className="secondary" onClick={() => onSellBuilding(index)}>Sell building</button>}
       <button className="secondary" disabled={state.houses > 0} onClick={() => onMortgage(index)}><Money /> {state.mortgaged ? "Unmortgage" : "Mortgage"}</button>
     </div>}
   </aside>;
@@ -636,7 +681,7 @@ function Game({ setup, onExit }) {
       setPlayers(updated);
       if (passedGo) addLog(`${currentPlayer.name} passed GO and collected $200.`);
       settleSpace(currentPlayer.id, position, total, updated);
-    }, fastMode ? 260 : 720);
+    }, fastMode ? 320 : 900);
   };
 
   const buyProperty = () => {
@@ -855,7 +900,7 @@ function Game({ setup, onExit }) {
         <div className="player-list">{players.map((player, i) => <PlayerCard key={player.id} player={player} active={i === turn} offline={offlinePeers.includes(player.peerId)} canTrade={canTrade && player.id !== localPlayer?.id} onTrade={setTradeTarget} />)}</div>
         <button className="trade-button" disabled={!canTrade} onClick={() => setTradeTarget(true)}><Handshake /> Propose a trade</button>
       </aside>
-      <section className="board-stage"><div className="bank-tray" aria-hidden="true"><span>DEEDS</span><b /><b /><b /><i>$</i></div><div className="board-zoom-controls"><button onClick={() => setBoardZoom(Math.max(.45, boardZoom - .15))}><MagnifyingGlassMinus /></button><button onClick={() => setBoardZoom(window.innerWidth < 820 ? .55 : 1)}>{Math.round(boardZoom * 100)}%</button><button onClick={() => setBoardZoom(Math.min(1.75, boardZoom + .15))}><MagnifyingGlassPlus /></button></div><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling, fastMode }} scale={boardZoom} />
+      <section className="board-stage"><div className="bank-tray" aria-hidden="true"><span>BANK DEEDS</span><b /><b /><b /><i>$</i></div><div className="board-zoom-controls"><button title="Zoom out" onClick={() => setBoardZoom(Math.max(.45, boardZoom - .15))}><MagnifyingGlassMinus /></button><button title="Reset board zoom" onClick={() => setBoardZoom(window.innerWidth < 820 ? .55 : 1)}>{Math.round(boardZoom * 100)}%</button><button title="Zoom in" onClick={() => setBoardZoom(Math.min(1.75, boardZoom + .15))}><MagnifyingGlassPlus /></button></div><Board {...{ players, ownership, selected, onSelect: setSelected, dice, rolling, fastMode }} scale={boardZoom} />
         <div className="turn-controls">
           <div className="turn-copy"><span style={{ background: currentPlayer.color }}><TokenPiece token={currentPlayer.token} color={currentPlayer.color} /></span><div><small>{currentPlayer.inJail ? "IN JAIL" : "YOUR MOVE"}</small><strong>{currentPlayer.inJail ? "Roll doubles or pay $50" : pendingBuy !== null ? `${BOARD[pendingBuy].name} is available` : rolled ? "Ready to pass the dice?" : "Roll the dice"}</strong></div></div>
           {currentPlayer.inJail && !rolled && currentPlayer.jailCards.length > 0 && <button className="secondary" disabled={!canAct} onClick={useJailCard}>Use jail card</button>}
@@ -869,13 +914,13 @@ function Game({ setup, onExit }) {
           <div className="asset-row"><span><Buildings /> Properties</span><strong>{owned.length}</strong></div>
           <div className="asset-row"><span>Get Out of Jail Free</span><strong>{walletPlayer.jailCards.length}</strong></div>
           <div className="asset-row bank-stock"><span><House /> Bank stock</span><strong>{bankHouses}H · {bankHotels} hotels</strong></div>
-          <div className="owned-strip">{owned.length ? owned.map((item) => <button onClick={() => setSelected(item.index)} style={{ borderTopColor: `var(--group-${item.group})` }} key={item.index}>{item.name.split(" ")[0]}<small>{item.mortgaged ? "M" : item.houses ? `${item.houses}H` : ""}</small></button>) : <p>Land somewhere nice to start your collection.</p>}</div>
+          <div className="owned-strip">{owned.length ? owned.map((item) => <button title={`Manage ${item.name}`} onClick={() => setSelected(item.index)} style={{ borderTopColor: `var(--group-${item.group})` }} key={item.index}>{item.name.split(" ")[0]}<small>{item.mortgaged ? "M" : item.houses === 5 ? "HOTEL" : item.houses ? `${item.houses}H` : "MANAGE"}</small></button>) : <p>Land somewhere nice to start your collection.</p>}</div>
           {walletPlayer.money < 0 && <button className="danger" onClick={() => declareBankruptcy(walletPlayer.id)}>Declare bankruptcy</button>}
         </section>
         <EventLog log={log} />
       </aside>
     </section>
-    {selected !== null && <PropertyPanel index={selected} {...{ ownership, players, currentPlayer, canAct, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={() => setSelected(null)} />}
+    {selected !== null && <PropertyPanel index={selected} ownership={ownership} players={players} currentPlayer={walletPlayer} {...{ canAct, bankHouses, bankHotels, onBuyBuilding: buyBuilding, onSellBuilding: sellBuilding, onMortgage: mortgage }} onClose={(nextIndex) => setSelected(Number.isInteger(nextIndex) ? nextIndex : null)} />}
     {card && <div className="modal-backdrop" onClick={() => setCard(null)}><section className={`drawn-card ${card.type}`} onClick={(e) => e.stopPropagation()}><span>{card.type === "chance" ? "?" : "★"}</span><small>{card.type === "chance" ? "CHANCE" : "COMMUNITY CHEST"}</small><h2>{card.text}</h2><button className="primary" onClick={() => setCard(null)}>Got it</button></section></div>}
     {tradeTarget && localPlayer && <TradeModal players={players} currentPlayer={localPlayer} ownership={ownership} initialTarget={tradeTarget === true ? null : tradeTarget} onClose={() => setTradeTarget(null)} onTrade={makeTrade} />}
     {pendingTrade && <TradeOfferModal offer={pendingTrade} players={players} onResolve={resolveTrade} canResolve={!setup.online || players.find((p) => p.id === pendingTrade.targetId)?.peerId === setup.localPeerId} />}

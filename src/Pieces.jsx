@@ -14,8 +14,10 @@ function Face({ side, value }) {
 }
 
 export function Dice3D({ value, rolling, second = false }) {
-  return <span className={`dice-cube dice-value-${value} ${rolling ? "is-rolling" : ""} ${second ? "dice-second" : ""}`}>
-    <Face side="front" value={value} /><Face side="back" value={7 - value} /><Face side="right" value={Math.max(1, (value + 1) % 7)} />
-    <Face side="left" value={Math.max(1, (value + 3) % 7)} /><Face side="top" value={Math.max(1, (value + 2) % 7)} /><Face side="bottom" value={Math.max(1, (value + 4) % 7)} />
+  return <span className={`die-flight ${second ? "die-flight-second" : ""}`}>
+    <span className={`dice-cube dice-value-${value} ${rolling ? "is-rolling" : ""} ${second ? "dice-second" : ""}`}>
+      <Face side="front" value={value} /><Face side="back" value={7 - value} /><Face side="right" value={second ? 4 : 3} />
+      <Face side="left" value={second ? 3 : 4} /><Face side="top" value={second ? 6 : 2} /><Face side="bottom" value={second ? 1 : 5} />
+    </span>
   </span>;
 }
